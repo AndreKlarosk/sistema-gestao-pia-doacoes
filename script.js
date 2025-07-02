@@ -85,6 +85,9 @@ let overviewTotalItems, overviewTotalPeople, overviewUpcomingAppointments, overv
 // Novas variáveis para o modal de notificação persistente
 let notificationModal, closeNotificationModalButton, notificationMessageContent, notificationOkButton;
 
+// Novas variáveis para o filtro e impressão de estoque
+let filterItemTypeSelect, printStockByTypeButton;
+
 
 // Função para exibir mensagens ao usuário (mensagens temporárias)
 function showMessage(message, type = 'info') {
@@ -236,7 +239,7 @@ function showDashboardContent(contentSectionToShow) {
 async function loadInitialDashboardData() {
     if (!userId) return; // Garante que o userId está disponível
     showDashboardContent(dashboardOverviewSection); // Mostra a visão geral por padrão
-    loadItems();
+    loadItems(); // Carrega itens sem filtro inicialmente
     loadPeople();
     loadVolunteers(); // Carrega voluntários ao iniciar o dashboard
     loadAppointments(); // Carrega agendamentos ao iniciar o dashboard
@@ -493,19 +496,32 @@ async function editItem(id) {
 }
 
 // Carrega e exibe os itens no estoque
-async function loadItems() {
+// Adicionado parâmetro opcional filterType
+async function loadItems(filterType = null) {
     if (!userId) return;
     // Desinscreve o listener anterior para evitar duplicação
     if (unsubscribeItems) {
         unsubscribeItems();
     }
 
-    unsubscribeItems = onSnapshot(collection(db, `artifacts/${appId}/public/data/items`), (snapshot) => {
+    let itemsQuery = collection(db, `artifacts/${appId}/public/data/items`);
+
+    // Se um tipo de filtro for fornecido, adicione a cláusula where
+    if (filterType && filterType !== 'all') {
+        itemsQuery = query(itemsQuery, where("type", "==", filterType));
+    }
+
+    unsubscribeItems = onSnapshot(itemsQuery, (snapshot) => {
         currentStockList.innerHTML = ''; // Limpa a lista a cada atualização
+        const uniqueTypes = new Set(); // Para coletar tipos únicos para o filtro
+
         if (snapshot.empty) {
             currentStockList.innerHTML = '<li class="text-gray-500 p-2">Nenhum item no estoque ainda.</li>';
+            // Se não houver itens, limpa o filtro de tipo
+            filterItemTypeSelect.innerHTML = '<option value="all">Todos os Tipos</option>';
             return;
         }
+
         snapshot.docs.forEach(docItem => {
             const data = docItem.data();
             const li = document.createElement('li');
@@ -524,7 +540,26 @@ async function loadItems() {
                 <button class="delete-button bg-red-500 hover:bg-red-600 text-white rounded-md shadow-sm" data-id="${docItem.id}">Excluir</button>
             `;
             currentStockList.appendChild(li);
+
+            // Adiciona o tipo à lista de tipos únicos
+            if (data.type) {
+                uniqueTypes.add(data.type);
+            }
         });
+
+        // Popula o dropdown de filtro de tipo
+        filterItemTypeSelect.innerHTML = '<option value="all">Todos os Tipos</option>';
+        uniqueTypes.forEach(type => {
+            const option = document.createElement('option');
+            option.value = type;
+            option.textContent = type.charAt(0).toUpperCase() + type.slice(1);
+            filterItemTypeSelect.appendChild(option);
+        });
+        // Define o valor selecionado do filtro
+        if (filterType) {
+            filterItemTypeSelect.value = filterType;
+        }
+
 
         // Adiciona event listeners para os botões de editar e excluir
         document.querySelectorAll('.edit-button').forEach(button => {
@@ -2182,6 +2217,78 @@ async function printPersonHistoryPdf(personData, itemsReceivedHistory) {
     doc.save(`historico_${personData.name.replace(/\s/g, '_')}.pdf`);
 }
 
+// NOVA FUNÇÃO: Geração de PDF de estoque por tipo
+async function printStockByTypePdf(type) {
+    if (!userId) {
+        showMessage("Usuário não autenticado. Por favor, faça login.", 'error');
+        return;
+    }
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+
+    doc.setFontSize(22);
+    doc.setTextColor(52, 152, 219);
+    doc.text(`Relatório de Estoque por Tipo: ${type === 'all' ? 'Todos' : type.charAt(0).toUpperCase() + type.slice(1)}`, doc.internal.pageSize.width / 2, 20, { align: "center" });
+
+    doc.setFontSize(12);
+    doc.setTextColor(0, 0, 0);
+    doc.text("------------------------------------------------------------------------------------------------------------------------------------------", 10, 25);
+
+    let itemsToPrint = [];
+    try {
+        let itemsQuery = collection(db, `artifacts/${appId}/public/data/items`);
+        if (type && type !== 'all') {
+            itemsQuery = query(itemsQuery, where("type", "==", type));
+        }
+        const querySnapshot = await getDocs(itemsQuery);
+        querySnapshot.forEach(docItem => {
+            itemsToPrint.push(docItem.data());
+        });
+    } catch (error) {
+        console.error("Erro ao buscar itens para relatório por tipo:", error);
+        showMessage("Erro ao gerar relatório de estoque por tipo.", 'error');
+        return;
+    }
+
+    let y = 40; // Posição Y inicial para os itens
+
+    if (itemsToPrint.length === 0) {
+        doc.setFontSize(12);
+        doc.setTextColor(52, 73, 94);
+        doc.text("Nenhum item encontrado para o tipo selecionado.", doc.internal.pageSize.width / 2, y, { align: "center" });
+    } else {
+        doc.setFontSize(10);
+        doc.setTextColor(52, 73, 94);
+
+        itemsToPrint.forEach(item => {
+            // Verifica se precisa de nova página antes de adicionar o item
+            if (y + 30 > doc.internal.pageSize.height - 30) { // Estima espaço para cada item
+                doc.addPage();
+                y = 20; // Reset Y para nova página
+                doc.setFontSize(10);
+                doc.setTextColor(52, 73, 94);
+            }
+
+            doc.text(`Categoria: ${item.category.charAt(0).toUpperCase() + item.category.slice(1)}`, 15, y);
+            doc.text(`Tipo: ${item.type}`, 15, y + 5);
+            doc.text(`Gênero: ${item.gender}`, 15, y + 10);
+            doc.text(`Tamanho: ${item.size}`, 15, y + 15);
+            doc.text(`Quantidade: ${item.quantity}`, 15, y + 20);
+            const receivedDate = item.receivedDate ? new Date(item.receivedDate.seconds * 1000).toLocaleString() : 'N/A';
+            doc.text(`Entrada em: ${receivedDate}`, 15, y + 25);
+            y += 35; // Espaço entre os itens
+        });
+    }
+
+    // Rodapé
+    doc.setFontSize(10);
+    doc.setTextColor(127, 140, 141);
+    doc.text("Sistema de Gestão de Estoque de Roupas e Calçados - Doações", doc.internal.pageSize.width / 2, doc.internal.pageSize.height - 15, { align: "center" });
+
+    doc.save(`relatorio_estoque_${type}.pdf`);
+}
+
 
 // Listener de estado de autenticação do Firebase
 onAuthStateChanged(auth, async (user) => {
@@ -2319,6 +2426,11 @@ document.addEventListener('DOMContentLoaded', () => {
     closeNotificationModalButton = document.getElementById('close-notification-modal');
     notificationMessageContent = document.getElementById('notification-message-content');
     notificationOkButton = document.getElementById('notification-ok-button'); // Inicializa o botão "Entendi"
+
+    // Inicialização das novas variáveis para o filtro e impressão de estoque
+    filterItemTypeSelect = document.getElementById('filter-item-type');
+    printStockByTypeButton = document.getElementById('print-stock-by-type-button');
+
 
     // --- Fim da Inicialização das Variáveis Globais de Elementos do DOM ---
 
@@ -2516,7 +2628,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // NOVO: Anexa listener para o botão "Entendi" do modal de notificação
+    // Anexa listener para o botão "Entendi" do modal de notificação
     if (notificationOkButton) {
         notificationOkButton.addEventListener('click', () => {
             if (notificationModal) {
@@ -2524,5 +2636,25 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
+
+    // NOVO: Event listener para o filtro de tipo de item
+    if (filterItemTypeSelect) {
+        filterItemTypeSelect.addEventListener('change', (e) => {
+            loadItems(e.target.value);
+        });
+    }
+
+    // NOVO: Event listener para o botão de imprimir estoque por tipo
+    if (printStockByTypeButton) {
+        printStockByTypeButton.addEventListener('click', () => {
+            const selectedType = filterItemTypeSelect.value;
+            if (selectedType) {
+                printStockByTypePdf(selectedType);
+            } else {
+                showMessage('Por favor, selecione um tipo para imprimir o estoque.', 'info');
+            }
+        });
+    }
+
 
 }); // Fim de DOMContentLoaded
