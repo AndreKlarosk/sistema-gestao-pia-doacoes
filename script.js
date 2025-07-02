@@ -82,8 +82,11 @@ let entradasChartContainer, saidasChartContainer;
 let agendamentoVoluntarioSelect, agendamentoItemsContainer, addAgendamentoItemRowButton;
 let overviewTotalItems, overviewTotalPeople, overviewUpcomingAppointments, overviewLatestEntries, overviewLatestExits;
 
+// Novas variáveis para o modal de notificação persistente
+let notificationModal, closeNotificationModalButton, notificationMessageContent, notificationOkButton;
 
-// Função para exibir mensagens ao usuário
+
+// Função para exibir mensagens ao usuário (mensagens temporárias)
 function showMessage(message, type = 'info') {
     const messageBox = document.getElementById('message-box');
     messageBox.textContent = message;
@@ -92,6 +95,29 @@ function showMessage(message, type = 'info') {
         messageBox.classList.add('hidden');
     }, 3000);
 }
+
+// NOVA FUNÇÃO: Exibe uma notificação persistente com som
+function showPersistentNotification(message) {
+    if (notificationMessageContent && notificationModal) {
+        notificationMessageContent.textContent = message;
+        notificationModal.classList.remove('hidden');
+
+        // Toca um som
+        try {
+            // Certifique-se de que o Tone.js foi carregado no seu HTML
+            const synth = new Tone.Synth().toDestination();
+            synth.triggerAttackRelease("C4", "8n"); // Toca um C4 por 1/8 de nota
+        } catch (e) {
+            console.error("Erro ao tocar som de notificação:", e);
+            // Pode ser que o Tone.js não tenha sido carregado ou o contexto de áudio não foi iniciado
+            // devido a restrições do navegador (ex: precisa de interação do usuário primeiro).
+        }
+    } else {
+        console.warn("Elementos do modal de notificação não encontrados. Exibindo como mensagem temporária.");
+        showMessage(message, 'info'); // Fallback para mensagem temporária
+    }
+}
+
 
 // Função para alternar a visibilidade das seções
 function showSection(sectionToShow) {
@@ -492,7 +518,7 @@ async function loadItems() {
                 <span><strong>Gênero:</strong> ${data.gender}</span>
                 <span><strong>Tamanho:</strong> ${data.size}</span>
                 <span><strong>Quantidade:</strong> ${data.quantity}</span>
-                <span><strong>Status:</strong> ${data.status}</span>
+                <!-- REMOVIDO: <span><strong>Status:</strong> ${data.status}</span> -->
                 <span><strong>Entrada por:</strong> ${addedBy} em ${receivedDate}</span>
                 <button class="edit-button bg-yellow-500 hover:bg-yellow-600 text-white rounded-md shadow-sm" data-id="${docItem.id}">Editar</button>
                 <button class="delete-button bg-red-500 hover:bg-red-600 text-white rounded-md shadow-sm" data-id="${docItem.id}">Excluir</button>
@@ -1023,7 +1049,7 @@ const defaultSaidaSubmitHandler = async (e) => { // Renomeado para consistência
         const transactionDate = new Date();
         const transactionDetails = {
             transactionId: Date.now().toString(), // ID único para a transação
-            date: transactionDate,
+            date: transactionDate, // Armazena como objeto Date, Firestore converterá para Timestamp
             exitedBy: userName, // Quem realizou a saída
             exitedById: userId, // ID de quem realizou a saída
             items: []
@@ -1510,7 +1536,8 @@ async function checkUpcomingAppointments() {
 
         querySnapshot.forEach(docItem => {
             const data = docItem.data();
-            const appointmentDateTime = data.dateTime && data.dateTime.seconds ? new Date(data.dateTime.seconds * 1000) : null;
+            // Tratamento robusto para a data do agendamento
+            const appointmentDateTime = data.dateTime instanceof Date ? data.dateTime : (data.dateTime && typeof data.dateTime.toDate === 'function' ? data.dateTime.toDate() : null);
 
             if (appointmentDateTime && appointmentDateTime > now && appointmentDateTime <= twentyFourHoursFromNow) {
                 const timeDiff = appointmentDateTime.getTime() - now.getTime();
@@ -1527,7 +1554,8 @@ async function checkUpcomingAppointments() {
         });
 
         if (notifications.length > 0) {
-            notifications.forEach(msg => showMessage(msg, 'info'));
+            // Usa a nova função de notificação persistente
+            notifications.forEach(msg => showPersistentNotification(msg));
         }
     } catch (error) {
         console.error("Erro ao verificar agendamentos próximos:", error);
@@ -1560,13 +1588,15 @@ async function showPersonHistory(personId, personName) {
                 let historyHtml = '';
                 // Ordena as transações da mais recente para a mais antiga
                 itemsReceived.sort((a, b) => {
-                    const dateA = a.date && a.date.seconds ? a.date.seconds : 0;
-                    const dateB = b.date && b.date.seconds ? b.date.seconds : 0;
+                    const dateA = a.date instanceof Date ? a.date.getTime() : (a.date && typeof a.date.toDate === 'function' ? a.date.toDate().getTime() : 0);
+                    const dateB = b.date instanceof Date ? b.date.getTime() : (b.date && typeof b.date.toDate === 'function' ? b.date.toDate().getTime() : 0);
                     return dateB - dateA;
                 });
 
                 itemsReceived.forEach(transaction => {
-                    const transactionDate = transaction.date && transaction.date.seconds ? new Date(transaction.date.seconds * 1000).toLocaleString() : 'N/A';
+                    // Tratamento robusto para a data da transação
+                    const transactionDateObj = transaction.date instanceof Date ? transaction.date : (transaction.date && typeof transaction.date.toDate === 'function' ? transaction.date.toDate() : null);
+                    const transactionDate = transactionDateObj ? transactionDateObj.toLocaleString() : 'N/A';
                     const exitedBy = transaction.exitedBy || 'Desconhecido';
                     historyHtml += `
                         <div class="border p-3 rounded-md bg-gray-50 shadow-sm mb-4">
@@ -1662,7 +1692,9 @@ async function generateReports() {
                 if (data.itemsReceived && data.itemsReceived.length > 0) {
                     itemsHtml = '<ul>';
                     data.itemsReceived.forEach(transaction => {
-                        const transactionDate = transaction.date && transaction.date.seconds ? new Date(transaction.date.seconds * 1000).toLocaleString() : 'N/A';
+                        // Tratamento robusto para a data da transação
+                        const transactionDateObj = transaction.date instanceof Date ? transaction.date : (transaction.date && typeof transaction.date.toDate === 'function' ? transaction.date.toDate() : null);
+                        const transactionDate = transactionDateObj ? transactionDateObj.toLocaleString() : 'N/A';
                         const exitedBy = transaction.exitedBy || 'Desconhecido';
                         itemsHtml += `<li><strong>Transação em ${transactionDate} por ${exitedBy}:</strong></li><ul>`;
                         if (transaction.items && transaction.items.length > 0) {
@@ -1903,7 +1935,9 @@ const defaultSearchSubmitHandler = async (e) => { // Renomeado para consistênci
             const description = data.description ? data.description.toLowerCase() : '';
             const volunteerName = data.volunteerName ? data.volunteerName.toLowerCase() : '';
             const status = data.status ? data.status.toLowerCase() : '';
-            const dateTimeString = data.dateTime && data.dateTime.seconds ? new Date(data.dateTime.seconds * 1000).toLocaleString().toLowerCase() : '';
+            // Tratamento robusto para a data do agendamento
+            const dateTimeObj = data.dateTime instanceof Date ? data.dateTime : (data.dateTime && typeof data.dateTime.toDate === 'function' ? data.dateTime.toDate() : null);
+            const dateTimeString = dateTimeObj ? dateTimeObj.toLocaleString().toLowerCase() : '';
 
             let itemsSearch = '';
             if (data.items && data.items.length > 0) {
@@ -2014,7 +2048,9 @@ async function generatePdfStatement(personData, transactionData) {
     doc.text("Detalhes da Transação:", 15, 85);
     doc.setFontSize(12);
     doc.setTextColor(52, 73, 94); // Cinza escuro
-    const transactionDate = transactionData.date && transactionData.date.seconds ? new Date(transactionData.date.seconds * 1000).toLocaleString() : 'N/A';
+    // Tratamento robusto para a data da transação
+    const transactionDateObj = transactionData.date instanceof Date ? transactionData.date : (transactionData.date && typeof transactionData.date.toDate === 'function' ? transactionData.date.toDate() : null);
+    const transactionDate = transactionDateObj ? transactionDateObj.toLocaleString() : 'N/A';
     doc.text(`Data e Hora: ${transactionDate}`, 20, 95);
     doc.text(`Realizado por: ${transactionData.exitedBy}`, 20, 102);
 
@@ -2092,7 +2128,9 @@ async function printPersonHistoryPdf(personData, itemsReceivedHistory) {
         doc.text("Nenhum atendimento registrado para esta pessoa.", doc.internal.pageSize.width / 2, y, { align: "center" });
     } else {
         itemsReceivedHistory.forEach(transaction => {
-            const transactionDate = transaction.date && transaction.date.seconds ? new Date(transaction.date.seconds * 1000).toLocaleString() : 'N/A';
+            // Tratamento robusto para a data da transação
+            const transactionDateObj = transaction.date instanceof Date ? transaction.date : (transaction.date && typeof transaction.date.toDate === 'function' ? transaction.date.toDate() : null);
+            const transactionDate = transactionDateObj ? transactionDateObj.toLocaleString() : 'N/A';
             const exitedBy = transaction.exitedBy || 'Desconhecido';
 
             // Verifica se precisa de nova página antes de adicionar a transação
@@ -2275,6 +2313,13 @@ document.addEventListener('DOMContentLoaded', () => {
     overviewUpcomingAppointments = document.getElementById('overview-upcoming-appointments');
     overviewLatestEntries = document.getElementById('overview-latest-entries');
     overviewLatestExits = document.getElementById('overview-latest-exits');
+
+    // Inicialização das novas variáveis para o modal de notificação persistente
+    notificationModal = document.getElementById('notification-modal');
+    closeNotificationModalButton = document.getElementById('close-notification-modal');
+    notificationMessageContent = document.getElementById('notification-message-content');
+    notificationOkButton = document.getElementById('notification-ok-button'); // Inicializa o botão "Entendi"
+
     // --- Fim da Inicialização das Variáveis Globais de Elementos do DOM ---
 
 
@@ -2461,5 +2506,23 @@ document.addEventListener('DOMContentLoaded', () => {
     closePersonHistoryModalButton.addEventListener('click', () => {
         personHistoryModal.classList.add('hidden');
     });
+
+    // Anexa listener para fechar o modal de notificação persistente (botão 'X')
+    if (closeNotificationModalButton) {
+        closeNotificationModalButton.addEventListener('click', () => {
+            if (notificationModal) {
+                notificationModal.classList.add('hidden');
+            }
+        });
+    }
+
+    // NOVO: Anexa listener para o botão "Entendi" do modal de notificação
+    if (notificationOkButton) {
+        notificationOkButton.addEventListener('click', () => {
+            if (notificationModal) {
+                notificationModal.classList.add('hidden');
+            }
+        });
+    }
 
 }); // Fim de DOMContentLoaded
