@@ -65,16 +65,17 @@ let unsubscribeItems = null;
 let unsubscribePeople = null;
 let unsubscribeVolunteers = null;
 let unsubscribeAppointments = null; // Novo unsubscriber para agendamentos
+let unsubscribeCestasBasicas = null; // Novo unsubscriber para cestas básicas
 
 // --- Declarações de Variáveis Globais para Elementos do DOM ---
 // Estas variáveis serão inicializadas dentro de DOMContentLoaded
 let loginSection, registerSection, resetPasswordSection, dashboardSection, authWrapper;
 let loginForm, registerForm, resetPasswordForm, logoutButton;
 let showRegisterLink, showResetPasswordLink, showLoginFromRegisterLink, showLoginFromResetLink;
-let navOverview, navEntrada, navSaida, navCadastroPessoas, navCadastroVoluntarios, navAgendamentos, navRelatorios, navPesquisa;
-let dashboardOverviewSection, entradaSection, saidaSection, cadastroPessoasSection, cadastroVoluntariosSection, agendamentosSection, relatoriosSection, pesquisaSection;
-let entradaForm, saidaForm, cadastroPessoasForm, cadastroVoluntariosForm, agendamentoForm, searchForm;
-let currentStockList, currentPeopleList, currentVolunteersList, currentAgendamentosList;
+let navOverview, navEntrada, navSaida, navCadastroPessoas, navCadastroVoluntarios, navAgendamentos, navRelatorios, navPesquisa, navCestasBasicas; // Adicionado navCestasBasicas
+let dashboardOverviewSection, entradaSection, saidaSection, cadastroPessoasSection, cadastroVoluntariosSection, agendamentosSection, relatoriosSection, pesquisaSection, cestasBasicasSection; // Adicionado cestasBasicasSection
+let entradaForm, saidaForm, cadastroPessoasForm, cadastroVoluntariosForm, agendamentoForm, searchForm, recebimentoCestaBasicaForm; // Adicionado recebimentoCestaBasicaForm
+let currentStockList, currentPeopleList, currentVolunteersList, currentAgendamentosList, currentCestasBasicasList; // Adicionado currentCestasBasicasList
 let saidaPessoaSelect, saidaItemsContainer, addItemRowButton, printLastReceiptButton;
 let relatorioEstoqueList, relatorioAtendimentosList, searchResultsList;
 let personHistoryModal, closePersonHistoryModalButton, personHistoryTitle, personHistoryContent, printPersonHistoryButton;
@@ -85,8 +86,12 @@ let overviewTotalItems, overviewTotalPeople, overviewUpcomingAppointments, overv
 // Novas variáveis para o modal de notificação persistente
 let notificationModal, closeNotificationModalButton, notificationMessageContent, notificationOkButton;
 
-// Novas variáveis para o filtro e impressão de estoque
+// Novas variáveis para o filtro e impressão de estoque (itens de roupa/calçado)
 let filterItemTypeSelect, printStockByTypeButton;
+
+// Novas variáveis para o formulário e filtro de cestas básicas
+let cestaBasicaNomeGeral, cestaBasicaQuantidadeGeral, cestaBasicaItemsContainer, addCestaBasicaItemRowButton; // Atualizado para nova estrutura
+let filterCestaBasicaValidade, printCestasBasicasButton;
 
 
 // Função para exibir mensagens ao usuário (mensagens temporárias)
@@ -162,7 +167,8 @@ function updateUIBasedOnRole() {
         'nav-cadastro-voluntarios': navCadastroVoluntarios,
         'nav-agendamentos': navAgendamentos,
         'nav-relatorios': navRelatorios,
-        'nav-pesquisa': navPesquisa
+        'nav-pesquisa': navPesquisa,
+        'nav-cestas-basicas': navCestasBasicas // Adicionado
     };
 
     const sensitiveButtons = document.querySelectorAll('.edit-button, .delete-button, .status-button');
@@ -171,7 +177,8 @@ function updateUIBasedOnRole() {
         saidaForm,
         cadastroPessoasForm,
         cadastroVoluntariosForm,
-        agendamentoForm
+        agendamentoForm,
+        recebimentoCestaBasicaForm // Adicionado
     ];
 
     if (userId) { // Se o utilizador estiver autenticado
@@ -182,6 +189,7 @@ function updateUIBasedOnRole() {
         });
         document.getElementById('add-item-row') && document.getElementById('add-item-row').classList.remove('hidden');
         document.getElementById('add-agendamento-item-row') && document.getElementById('add-agendamento-item-row').classList.remove('hidden');
+        document.getElementById('add-cesta-basica-item-row') && document.getElementById('add-cesta-basica-item-row').classList.remove('hidden'); // Novo
     } else { // Se não estiver autenticado (guest)
         Object.values(navLinks).forEach(link => link && link.classList.add('hidden'));
         sensitiveButtons.forEach(button => button.classList.add('hidden'));
@@ -190,12 +198,13 @@ function updateUIBasedOnRole() {
         });
         document.getElementById('add-item-row') && document.getElementById('add-item-row').classList.add('hidden');
         document.getElementById('add-agendamento-item-row') && document.getElementById('add-agendamento-item-row').classList.add('hidden');
+        document.getElementById('add-cesta-basica-item-row') && document.getElementById('add-cesta-basica-item-row').classList.add('hidden'); // Novo
     }
 }
 
 
 function showDashboardContent(contentSectionToShow) {
-    const contentSections = [dashboardOverviewSection, entradaSection, saidaSection, cadastroPessoasSection, cadastroVoluntariosSection, agendamentosSection, relatoriosSection, pesquisaSection];
+    const contentSections = [dashboardOverviewSection, entradaSection, saidaSection, cadastroPessoasSection, cadastroVoluntariosSection, agendamentosSection, relatoriosSection, pesquisaSection, cestasBasicasSection]; // Adicionado cestasBasicasSection
     contentSections.forEach(section => {
         if (section) {
             section.classList.add('hidden');
@@ -227,6 +236,10 @@ function showDashboardContent(contentSectionToShow) {
         navRelatorios.classList.add('active');
     } else if (contentSectionToShow === pesquisaSection) {
         navPesquisa.classList.add('active');
+    } else if (contentSectionToShow === cestasBasicasSection) { // Novo: Ativa o link de cestas básicas
+        navCestasBasicas.classList.add('active');
+        loadBasicFoodBaskets(); // Carrega as cestas básicas ao entrar na seção
+        cestaBasicaItemsContainer.innerHTML = '<p class="text-gray-500 text-center">Adicione itens para detalhar o conteúdo da cesta.</p>'; // Limpa os itens da cesta
     }
 
     // Sempre chama updateUIBasedOnRole ao mudar de seção para garantir a visibilidade correta
@@ -252,10 +265,14 @@ async function loadDashboardOverviewData() {
     console.log("Iniciando loadDashboardOverviewData...");
 
     try {
-        // Total de Itens em Estoque
+        // Total de Itens em Estoque (incluindo roupas/calçados e cestas básicas)
         const itemsSnapshot = await getDocs(collection(db, `artifacts/${appId}/public/data/items`));
+        const basicFoodBasketsSnapshot = await getDocs(collection(db, `artifacts/${appId}/public/data/basicFoodBaskets`)); // Novo snapshot para cestas básicas
         let totalItems = 0;
         itemsSnapshot.forEach(doc => {
+            totalItems += doc.data().quantity || 0;
+        });
+        basicFoodBasketsSnapshot.forEach(doc => { // Adiciona a quantidade de cestas básicas
             totalItems += doc.data().quantity || 0;
         });
         overviewTotalItems.textContent = totalItems;
@@ -292,27 +309,60 @@ async function loadDashboardOverviewData() {
         console.log("Agendamentos Próximos (próximas 24h):", upcomingAppointmentsCount);
 
         // Últimas Entradas (últimos 5 itens)
-        const latestEntriesQuery = query(
+        // Para as últimas entradas, combinamos itens de roupas/calçados e cestas básicas
+        const latestItemsQuery = query(
             collection(db, `artifacts/${appId}/public/data/items`),
             orderBy("receivedDate", "desc"),
             limit(5)
         );
-        const latestEntriesSnapshot = await getDocs(latestEntriesQuery);
-        overviewLatestEntries.innerHTML = '';
-        console.log("Últimas Entradas (raw snapshot):", latestEntriesSnapshot.docs.map(doc => doc.data()));
+        const latestBasketsQuery = query(
+            collection(db, `artifacts/${appId}/public/data/basicFoodBaskets`),
+            orderBy("receivedDate", "desc"),
+            limit(5)
+        );
 
-        if (latestEntriesSnapshot.empty) {
+        const [itemsResult, basketsResult] = await Promise.all([
+            getDocs(latestItemsQuery),
+            getDocs(latestBasketsQuery)
+        ]);
+
+        let allLatestEntries = [];
+        itemsResult.forEach(docItem => {
+            const data = docItem.data();
+            allLatestEntries.push({
+                date: data.receivedDate,
+                display: `${data.type} (${data.size}) - Qtd: ${data.quantity}`
+            });
+        });
+        basketsResult.forEach(docBasket => {
+            const data = docBasket.data();
+            allLatestEntries.push({
+                date: data.receivedDate,
+                display: `Cesta Básica: ${data.generalName} - Qtd: ${data.quantity}` // Usar generalName
+            });
+        });
+
+        // Ordena todas as entradas combinadas pela data mais recente e limita a 5
+        allLatestEntries.sort((a, b) => {
+            const dateA = a.date && a.date.seconds ? a.date.seconds : 0;
+            const dateB = b.date && b.date.seconds ? b.date.seconds : 0;
+            return dateB - dateA;
+        });
+        allLatestEntries = allLatestEntries.slice(0, 5);
+
+        overviewLatestEntries.innerHTML = '';
+        if (allLatestEntries.length === 0) {
             overviewLatestEntries.innerHTML = '<li class="text-gray-500 p-2">Nenhuma entrada recente.</li>';
         } else {
-            latestEntriesSnapshot.forEach(docItem => {
-                const data = docItem.data();
+            allLatestEntries.forEach(entry => {
                 const li = document.createElement('li');
                 li.className = 'border-b border-gray-200 p-2 text-sm';
-                const receivedDate = data.receivedDate ? new Date(data.receivedDate.seconds * 1000).toLocaleString() : 'N/A';
-                li.innerHTML = `<strong>${data.type} (${data.size})</strong> - Qtd: ${data.quantity} em ${receivedDate}`;
+                const receivedDate = entry.date ? new Date(entry.date.seconds * 1000).toLocaleString() : 'N/A';
+                li.innerHTML = `<strong>${entry.display}</strong> em ${receivedDate}`;
                 overviewLatestEntries.appendChild(li);
             });
         }
+
 
         // Últimas Saídas (últimas 5 transações)
         // Para as saídas, precisamos buscar as pessoas e depois iterar sobre os itemsReceived
@@ -980,7 +1030,7 @@ async function addItemRow() {
         showMessage("Você não tem permissão para adicionar itens de saída.", 'error');
         return;
     }
-    const allItems = await getItemsData(); // Pega todos os itens disponíveis
+    const allItems = await getItemsData(); // Pega todos os itens disponíveis (roupas/calçados e cestas básicas)
     const newRow = document.createElement('div');
     newRow.className = 'saida-item-row flex flex-col sm:flex-row sm:items-end gap-2';
     newRow.innerHTML = `
@@ -988,7 +1038,7 @@ async function addItemRow() {
             <label class="block text-sm font-medium text-gray-700">Item</label>
             <select class="item-select mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" required>
                 <option value="">Selecione um item</option>
-                ${allItems.map(item => `<option value="${item.id}" data-category="${item.category}" data-type="${item.type}" data-size="${item.size}" data-gender="${item.gender}" data-quantity="${item.quantity}">${item.category}: ${item.type} (${item.size}) - Qtd: ${item.quantity}</option>`).join('')}
+                ${allItems.map(item => `<option value="${item.id}" data-item-type="${item.type}" data-quantity="${item.quantity}" ${item.type === 'clothing' ? `data-category="${item.details.category}" data-type="${item.details.type}" data-size="${item.details.size}" data-gender="${item.details.gender}"` : `data-general-name="${item.details.generalName}"`}>${item.display}</option>`).join('')}
             </select>
         </div>
         <div>
@@ -1005,13 +1055,49 @@ async function addItemRow() {
     });
 }
 
-// Função auxiliar para obter todos os itens do estoque
+// Função auxiliar para obter todos os itens do estoque (roupas/calçados e cestas básicas)
 async function getItemsData() {
     if (!userId) return [];
     try {
-        const q = query(collection(db, `artifacts/${appId}/public/data/items`), where("quantity", ">", 0));
-        const querySnapshot = await getDocs(q);
-        return querySnapshot.docs.map(docItem => ({ id: docItem.id, ...docItem.data() }));
+        const itemsQuery = query(collection(db, `artifacts/${appId}/public/data/items`), where("quantity", ">", 0));
+        const itemsSnapshot = await getDocs(itemsQuery);
+        const basicFoodBasketsQuery = query(collection(db, `artifacts/${appId}/public/data/basicFoodBaskets`), where("quantity", ">", 0));
+        const basicFoodBasketsSnapshot = await getDocs(basicFoodBasketsQuery);
+
+        let allAvailableItems = [];
+
+        // Adiciona itens de roupa/calçado
+        itemsSnapshot.forEach(docItem => {
+            const data = docItem.data();
+            allAvailableItems.push({
+                id: docItem.id,
+                type: 'clothing', // Identificador de tipo personalizado
+                display: `${data.category}: ${data.type} (${data.size}) - Qtd: ${data.quantity}`,
+                quantity: data.quantity,
+                details: {
+                    category: data.category,
+                    type: data.type,
+                    gender: data.gender,
+                    size: data.size
+                }
+            });
+        });
+
+        // Adiciona cestas básicas
+        basicFoodBasketsSnapshot.forEach(docBasket => {
+            const data = docBasket.data();
+            allAvailableItems.push({
+                id: docBasket.id,
+                type: 'basic_basket', // Identificador de tipo personalizado
+                display: `Cesta Básica: ${data.generalName} - Qtd: ${data.quantity}`, // Usar generalName
+                quantity: data.quantity,
+                details: {
+                    generalName: data.generalName, // Manter o nome geral
+                    items: data.items // Incluir os itens detalhados da cesta
+                }
+            });
+        });
+        return allAvailableItems;
     } catch (error) {
         console.error("Erro ao obter itens para selects:", error);
         showMessage("Erro ao carregar itens para seleção.", 'error');
@@ -1049,13 +1135,14 @@ const defaultSaidaSubmitHandler = async (e) => { // Renomeado para consistência
 
         const itemId = itemSelect.value;
         const quantidadeSaida = parseInt(itemQuantityInput.value);
+        const selectedOption = itemSelect.options[itemSelect.selectedIndex]; // Obter a opção selecionada
+        const itemType = selectedOption.dataset.itemType; // Obter o tipo de item (clothing ou basic_basket)
 
         if (!itemId || isNaN(quantidadeSaida) || quantidadeSaida <= 0) {
             showMessage("Por favor, preencha todos os campos de item e quantidade corretamente.", 'error');
             return;
         }
 
-        const selectedOption = itemSelect.options[itemSelect.selectedIndex];
         const currentStock = parseInt(selectedOption.dataset.quantity);
 
         if (quantidadeSaida > currentStock) {
@@ -1063,15 +1150,37 @@ const defaultSaidaSubmitHandler = async (e) => { // Renomeado para consistência
             return;
         }
 
-        itemsToExit.push({
-            id: itemId,
-            quantity: quantidadeSaida,
-            details: {
+        let itemDetails = {};
+        if (itemType === 'clothing') {
+            itemDetails = {
                 category: selectedOption.dataset.category,
                 type: selectedOption.dataset.type,
                 size: selectedOption.dataset.size,
                 gender: selectedOption.dataset.gender
+            };
+        } else if (itemType === 'basic_basket') {
+            // Para cestas básicas, precisamos buscar os detalhes dos sub-itens do Firestore
+            // ou armazená-los como um atributo de dados na opção do select.
+            // Para simplificar, vamos passar o generalName e buscar os sub-itens no PDF/Histórico
+            // Ou, melhor, já que getItemsData já traz os items, podemos passá-los aqui.
+            // A "details" para basic_basket já contém `items` e `generalName` de `getItemsData`
+            // Então, podemos simplesmente pegar isso do `selectedOption` se tivermos um jeito.
+            // Para o dataset, só podemos armazenar strings. Precisamos buscar os itens da cesta
+            // ou serializá-los. Vamos buscar os dados completos da cesta no Firestore para garantir.
+            const basketDoc = await getDoc(doc(db, `artifacts/${appId}/public/data/basicFoodBaskets`, itemId));
+            if (basketDoc.exists()) {
+                itemDetails = {
+                    generalName: basketDoc.data().generalName,
+                    items: basketDoc.data().items // Inclui os sub-itens da cesta
+                };
             }
+        }
+
+        itemsToExit.push({
+            id: itemId,
+            quantity: quantidadeSaida,
+            itemType: itemType, // Armazena o tipo do item
+            details: itemDetails
         });
     }
 
@@ -1091,8 +1200,16 @@ const defaultSaidaSubmitHandler = async (e) => { // Renomeado para consistência
         };
 
         for (const item of itemsToExit) {
-            const itemDocRef = doc(db, `artifacts/${appId}/public/data/items`, item.id);
-            // Usando a função increment importada diretamente
+            let itemDocRef;
+            if (item.itemType === 'clothing') {
+                itemDocRef = doc(db, `artifacts/${appId}/public/data/items`, item.id);
+            } else if (item.itemType === 'basic_basket') {
+                itemDocRef = doc(db, `artifacts/${appId}/public/data/basicFoodBaskets`, item.id);
+            } else {
+                console.warn("Tipo de item desconhecido na saída:", item.itemType);
+                continue; // Pula para o próximo item se o tipo for desconhecido
+            }
+
             await updateDoc(itemDocRef, {
                 quantity: increment(-item.quantity), // Agora usa 'increment' diretamente
                 lastUpdated: new Date()
@@ -1101,7 +1218,8 @@ const defaultSaidaSubmitHandler = async (e) => { // Renomeado para consistência
             transactionDetails.items.push({
                 itemId: item.id,
                 quantity: item.quantity,
-                itemDetails: item.details
+                itemType: item.itemType, // Armazena o tipo do item nos detalhes da transação
+                itemDetails: item.details // Agora item.details já contém os sub-itens para cestas básicas
             });
         }
 
@@ -1642,7 +1760,20 @@ async function showPersonHistory(personId, personName) {
                     `;
                     if (transaction.items && transaction.items.length > 0) {
                         transaction.items.forEach(item => {
-                            historyHtml += `<li>${item.itemDetails.category.charAt(0).toUpperCase() + item.itemDetails.category.slice(1)}: ${item.itemDetails.type} (${item.itemDetails.size}) - Qtd: ${item.quantity}</li>`;
+                            // Verifica o tipo de item para exibir corretamente
+                            if (item.itemType === 'clothing') {
+                                historyHtml += `<li>${item.itemDetails.category.charAt(0).toUpperCase() + item.itemDetails.category.slice(1)}: ${item.itemDetails.type} (${item.itemDetails.size}) - Qtd: ${item.quantity}</li>`;
+                            } else if (item.itemType === 'basic_basket') {
+                                historyHtml += `<li>Cesta Básica: ${item.itemDetails.generalName} (Qtd: ${item.quantity})</li>`;
+                                if (item.itemDetails.items && item.itemDetails.items.length > 0) {
+                                    historyHtml += `<ul class="list-disc list-inside ml-4 text-gray-500 text-sm">`;
+                                    item.itemDetails.items.forEach(subItem => {
+                                        const subItemExpirationDate = subItem.expirationDate ? new Date(subItem.expirationDate.seconds * 1000).toLocaleDateString() : 'N/A';
+                                        historyHtml += `<li>- ${subItem.description} (Qtd: ${subItem.quantity}, Val: ${subItemExpirationDate})</li>`;
+                                    });
+                                    historyHtml += `</ul>`;
+                                }
+                            }
                         });
                     } else {
                         historyHtml += `<li>Nenhum item detalhado.</li>`;
@@ -1687,18 +1818,38 @@ async function generateReports() {
         saidasChartInstance.destroy();
     }
 
-    // Relatório de Estoque
+    // Relatório de Estoque (incluindo cestas básicas)
     try {
-        const itemsSnapshot = await getDocs(collection(db, `artifacts/${appId}/public/data/items`)); // Coleção agora é 'items'
-        if (itemsSnapshot.empty) {
+        const itemsSnapshot = await getDocs(collection(db, `artifacts/${appId}/public/data/items`));
+        const basicFoodBasketsSnapshot = await getDocs(collection(db, `artifacts/${appId}/public/data/basicFoodBaskets`)); // Novo snapshot para cestas básicas
+
+        let allStockItems = [];
+        itemsSnapshot.forEach(docItem => {
+            const data = docItem.data();
+            allStockItems.push({ ...data, type: 'clothing', id: docItem.id }); // Adiciona um tipo para diferenciar
+        });
+        basicFoodBasketsSnapshot.forEach(docBasket => {
+            const data = docBasket.data();
+            allStockItems.push({ ...data, type: 'basic_basket', id: docBasket.id }); // Adiciona um tipo para diferenciar
+        });
+
+        if (allStockItems.length === 0) {
             relatorioEstoqueList.innerHTML = '<li class="text-gray-500 p-2">Nenhum item no estoque para relatório.</li>';
         } else {
-            itemsSnapshot.forEach(docItem => {
-                const data = docItem.data();
+            // Ordena por data de recebimento (mais recente primeiro)
+            allStockItems.sort((a, b) => {
+                const dateA = a.receivedDate && a.receivedDate.seconds ? a.receivedDate.seconds : 0;
+                const dateB = b.receivedDate && b.receivedDate.seconds ? b.receivedDate.seconds : 0;
+                return dateB - dateA;
+            });
+
+            allStockItems.forEach(data => {
                 const receivedDate = data.receivedDate ? new Date(data.receivedDate.seconds * 1000).toLocaleString() : 'N/A';
                 const addedBy = data.addedBy || 'Desconhecido';
-                relatorioEstoqueList.innerHTML += `
-                    <li class="list-item">
+                let itemDisplay = '';
+
+                if (data.type === 'clothing') {
+                    itemDisplay = `
                         <span><strong>Categoria:</strong> ${data.category}</span>
                         <span><strong>Tipo:</strong> ${data.type}</span>
                         <span><strong>Gênero:</strong> ${data.gender}</span>
@@ -1706,8 +1857,25 @@ async function generateReports() {
                         <span><strong>Quantidade:</strong> ${data.quantity}</span>
                         <span><strong>Status:</strong> ${data.status}</span>
                         <span><strong>Entrada por:</strong> ${addedBy} em ${receivedDate}</span>
-                    </li>
-                `;
+                    `;
+                } else if (data.type === 'basic_basket') {
+                    itemDisplay = `
+                        <span><strong>Tipo:</strong> Cesta Básica</span>
+                        <span><strong>Nome Geral:</strong> ${data.generalName}</span>
+                        <span><strong>Quantidade de Cestas:</strong> ${data.quantity}</span>
+                        <span><strong>Entrada por:</strong> ${addedBy} em ${receivedDate}</span>
+                    `;
+                    if (data.items && data.items.length > 0) {
+                        itemDisplay += `<div class="ml-4 mt-2"><strong>Itens da Cesta:</strong><ul class="list-disc list-inside text-sm">`;
+                        data.items.forEach(subItem => {
+                            const subItemExpirationDate = subItem.expirationDate ? new Date(subItem.expirationDate.seconds * 1000).toLocaleDateString() : 'N/A';
+                            itemDisplay += `<li>${subItem.description} (Qtd: ${subItem.quantity}, Val: ${subItemExpirationDate})</li>`;
+                        });
+                        itemDisplay += `</ul></div>`;
+                    }
+                }
+
+                relatorioEstoqueList.innerHTML += `<li class="list-item flex-col items-start">${itemDisplay}</li>`; // Use flex-col for better layout
             });
         }
     } catch (error) {
@@ -1734,7 +1902,19 @@ async function generateReports() {
                         itemsHtml += `<li><strong>Transação em ${transactionDate} por ${exitedBy}:</strong></li><ul>`;
                         if (transaction.items && transaction.items.length > 0) {
                             transaction.items.forEach(item => {
-                                itemsHtml += `<li>- ${item.itemDetails.category}: ${item.itemDetails.type} (${item.itemDetails.size}) - Qtd: ${item.quantity}</li>`;
+                                if (item.itemType === 'clothing') {
+                                    itemsHtml += `<li>- ${item.itemDetails.category}: ${item.itemDetails.type} (${item.itemDetails.size}) - Qtd: ${item.quantity}</li>`;
+                                } else if (item.itemType === 'basic_basket') {
+                                    itemsHtml += `<li>- Cesta Básica: ${item.itemDetails.generalName} (Qtd: ${item.quantity})</li>`;
+                                    if (item.itemDetails.items && item.itemDetails.items.length > 0) {
+                                        itemsHtml += `<ul class="list-disc list-inside ml-4 text-gray-500 text-sm">`;
+                                        item.itemDetails.items.forEach(subItem => {
+                                            const subItemExpirationDate = subItem.expirationDate ? new Date(subItem.expirationDate.seconds * 1000).toLocaleDateString() : 'N/A';
+                                            itemsHtml += `<li>- ${subItem.description} (Qtd: ${subItem.quantity}, Val: ${subItemExpirationDate})</li>`;
+                                        });
+                                        itemsHtml += `</ul>`;
+                                    }
+                                }
                             });
                         } else {
                             itemsHtml += `<li>- Nenhum item detalhado.</li>`;
@@ -1746,7 +1926,7 @@ async function generateReports() {
                     itemsHtml = 'Nenhum item retirado.';
                 }
                 relatorioAtendimentosList.innerHTML += `
-                    <li class="list-item">
+                    <li class="list-item flex-col items-start">
                         <span><strong>Pessoa:</strong> ${data.name}</span>
                         <span><strong>Contato:</strong> ${data.contact}</span>
                         <span><strong>Atendimentos:</strong> ${itemsHtml}</span>
@@ -1778,7 +1958,7 @@ async function generateCharts() {
         'calcado': 0
     };
 
-    // Coletar dados de entradas
+    // Coletar dados de entradas (apenas roupas/calçados para este gráfico)
     try {
         const itemsSnapshot = await getDocs(collection(db, `artifacts/${appId}/public/data/items`));
         itemsSnapshot.forEach(docItem => {
@@ -1791,7 +1971,7 @@ async function generateCharts() {
         console.error("Erro ao coletar dados para gráfico de entradas:", error);
     }
 
-    // Coletar dados de saídas
+    // Coletar dados de saídas (apenas roupas/calçados para este gráfico)
     try {
         const peopleSnapshot = await getDocs(collection(db, `artifacts/${appId}/public/data/peopleServed`));
         peopleSnapshot.forEach(personDoc => {
@@ -1800,7 +1980,7 @@ async function generateCharts() {
                 data.itemsReceived.forEach(transaction => { // Itera sobre as transações
                     if (transaction.items) { // Garante que transaction.items existe
                         transaction.items.forEach(item => { // Itera sobre os itens em cada transação
-                            if (item.itemDetails && item.itemDetails.category && saidasPorCategoria.hasOwnProperty(item.itemDetails.category)) {
+                            if (item.itemType === 'clothing' && item.itemDetails && item.itemDetails.category && saidasPorCategoria.hasOwnProperty(item.itemDetails.category)) {
                                 saidasPorCategoria[item.itemDetails.category] += item.quantity;
                             }
                         });
@@ -1816,7 +1996,7 @@ async function generateCharts() {
     const totalEntradas = Object.values(entradasPorCategoria).reduce((sum, val) => sum + val, 0);
     if (totalEntradas > 0) {
         // Garante que o canvas está visível e limpo
-        entradasChartContainer.innerHTML = '<h4 class="text-lg font-semibold text-gray-700 mb-2">Entradas por Categoria</h4><canvas id="entradasChart"></canvas>';
+        entradasChartContainer.innerHTML = '<h4 class="text-lg font-semibold text-gray-700 mb-2">Entradas por Categoria (Roupas/Calçados)</h4><canvas id="entradasChart"></canvas>';
         const ctxEntradas = document.getElementById('entradasChart').getContext('2d');
         entradasChartInstance = new Chart(ctxEntradas, {
             type: 'bar',
@@ -1852,14 +2032,14 @@ async function generateCharts() {
         });
     } else {
         // Exibe mensagem se não houver dados
-        entradasChartContainer.innerHTML = '<h4 class="text-lg font-semibold text-gray-700 mb-2">Entradas por Categoria</h4><p class="text-gray-500 text-center mt-4">Nenhum dado de entrada disponível para este gráfico.</p>';
+        entradasChartContainer.innerHTML = '<h4 class="text-lg font-semibold text-gray-700 mb-2">Entradas por Categoria (Roupas/Calçados)</h4><p class="text-gray-500 text-center mt-4">Nenhum dado de entrada disponível para este gráfico.</p>';
     }
 
     // Verifica se há dados para o gráfico de saídas
     const totalSaidas = Object.values(saidasPorCategoria).reduce((sum, val) => sum + val, 0);
     if (totalSaidas > 0) {
         // Garante que o canvas está visível e limpo
-        saidasChartContainer.innerHTML = '<h4 class="text-lg font-semibold text-gray-700 mb-2">Saídas por Categoria</h4><canvas id="saidasChart"></canvas>';
+        saidasChartContainer.innerHTML = '<h4 class="text-lg font-semibold text-gray-700 mb-2">Saídas por Categoria (Roupas/Calçados)</h4><canvas id="saidasChart"></canvas>';
         const ctxSaidas = document.getElementById('saidasChart').getContext('2d');
         saidasChartInstance = new Chart(ctxSaidas, {
             type: 'pie',
@@ -1886,7 +2066,7 @@ async function generateCharts() {
         });
     } else {
         // Exibe mensagem se não houver dados
-        saidasChartContainer.innerHTML = '<h4 class="text-lg font-semibold text-gray-700 mb-2">Saídas por Categoria</h4><p class="text-gray-500 text-center mt-4">Nenhum dado de saída disponível para este gráfico.</p>';
+        saidasChartContainer.innerHTML = '<h4 class="text-lg font-semibold text-gray-700 mb-2">Saídas por Categoria (Roupas/Calçados)</h4><p class="text-gray-500 text-center mt-4">Nenhum dado de saída disponível para este gráfico.</p>';
     }
 }
 
@@ -1923,6 +2103,36 @@ const defaultSearchSubmitHandler = async (e) => { // Renomeado para consistênci
                 const li = document.createElement('li');
                 li.className = 'list-item'; // Adiciona a classe list-item
                 li.innerHTML = `<span><strong>${data.category.charAt(0).toUpperCase() + data.category.slice(1)}:</strong> ${data.type} (${data.size}, ${data.gender}) - Qtd: ${data.quantity}</span>`;
+                searchResultsList.appendChild(li);
+                resultsFound = true;
+            }
+        });
+
+        // Pesquisar em Cestas Básicas (NOVO)
+        const basicFoodBasketsQuerySnapshot = await getDocs(collection(db, `artifacts/${appId}/public/data/basicFoodBaskets`));
+        basicFoodBasketsQuerySnapshot.forEach(docBasket => {
+            const data = docBasket.data();
+            const generalName = data.generalName ? data.generalName.toLowerCase() : ''; // Novo campo para pesquisa
+            let itemsDescription = '';
+            if (data.items && data.items.length > 0) {
+                itemsDescription = data.items.map(item => `${item.description}`).join(' ').toLowerCase();
+            }
+            const receivedDate = data.receivedDate ? new Date(data.receivedDate.seconds * 1000).toLocaleDateString().toLowerCase() : '';
+
+
+            if (generalName.includes(queryText) || itemsDescription.includes(queryText) || receivedDate.includes(queryText)) {
+                const li = document.createElement('li');
+                li.className = 'list-item flex-col items-start';
+                let itemsHtml = '';
+                if (data.items && data.items.length > 0) {
+                    itemsHtml = '<div class="w-full mt-2"><h5 class="font-semibold text-gray-700">Itens da Cesta:</h5><ul class="list-disc list-inside text-gray-600 text-sm">';
+                    data.items.forEach(item => {
+                        const expirationDate = item.expirationDate ? new Date(item.expirationDate.seconds * 1000).toLocaleDateString() : 'N/A';
+                        itemsHtml += `<li>${item.description} (Qtd: ${item.quantity}, Val: ${expirationDate})</li>`;
+                    });
+                    itemsHtml += '</ul></div>';
+                }
+                li.innerHTML = `<span><strong>Cesta Básica:</strong> ${data.generalName} - Qtd: ${data.quantity}</span>${itemsHtml}`;
                 searchResultsList.appendChild(li);
                 resultsFound = true;
             }
@@ -1976,7 +2186,14 @@ const defaultSearchSubmitHandler = async (e) => { // Renomeado para consistênci
 
             let itemsSearch = '';
             if (data.items && data.items.length > 0) {
-                itemsSearch = data.items.map(item => `${item.category} ${item.type} ${item.size} ${item.gender}`).join(' ').toLowerCase();
+                itemsSearch = data.items.map(item => {
+                    if (item.itemType === 'clothing') {
+                        return `${item.category} ${item.type} ${item.size} ${item.gender}`;
+                    } else if (item.itemType === 'basic_basket') {
+                        return item.description;
+                    }
+                    return '';
+                }).join(' ').toLowerCase();
             }
 
             if (type.includes(queryText) || description.includes(queryText) || volunteerName.includes(queryText) || dateTimeString.includes(queryText) || status.includes(queryText) || itemsSearch.includes(queryText)) {
@@ -1986,7 +2203,12 @@ const defaultSearchSubmitHandler = async (e) => { // Renomeado para consistênci
                 if (data.items && data.items.length > 0) {
                     itemsHtml = '<div class="w-full mt-2"><h5 class="font-semibold text-gray-700">Itens Agendados:</h5><ul class="list-disc list-inside text-gray-600 text-sm">';
                     data.items.forEach(item => {
-                        itemsHtml += `<li>${item.category}: ${item.type} (${item.size}, ${item.gender}) - Qtd: ${item.quantity}</li>`;
+                        if (item.itemType === 'clothing') {
+                            itemsHtml += `<li>${item.itemDetails.category}: ${item.itemDetails.type} (${item.itemDetails.size}, ${item.itemDetails.gender}) - Qtd: ${item.quantity}</li>`;
+                        } else if (item.itemType === 'basic_basket') {
+                            const expirationDate = item.itemDetails.expirationDate ? new Date(item.itemDetails.expirationDate.seconds * 1000).toLocaleDateString() : 'N/A';
+                            itemsHtml += `<li>Cesta Básica: ${item.itemDetails.description} (Val: ${expirationDate}) - Qtd: ${item.quantity}</li>`;
+                        }
                     });
                     itemsHtml += '</ul></div>';
                 } else {
@@ -2076,7 +2298,6 @@ async function generatePdfStatement(personData, transactionData) {
 
     doc.text("------------------------------------------------------------------------------------------------------------------------------------------", 10, 70);
 
-
     // Detalhes da Transação
     doc.setFontSize(14);
     doc.setTextColor(44, 62, 80); // Azul escuro
@@ -2102,12 +2323,26 @@ async function generatePdfStatement(personData, transactionData) {
 
     if (transactionData.items && transactionData.items.length > 0) {
         transactionData.items.forEach(item => {
-            doc.text(`- Categoria: ${item.itemDetails.category.charAt(0).toUpperCase() + item.itemDetails.category.slice(1)}`, 25, y);
-            doc.text(`Tipo: ${item.itemDetails.type}`, 25, y + 5);
-            doc.text(`Tamanho: ${item.itemDetails.size}`, 25, y + 10);
-            doc.text(`Gênero: ${item.itemDetails.gender}`, 25, y + 15);
-            doc.text(`Quantidade: ${item.quantity}`, 25, y + 20);
-            y += 30; // Espaço para o próximo item
+            if (item.itemType === 'clothing') {
+                doc.text(`- Categoria: ${item.itemDetails.category.charAt(0).toUpperCase() + item.itemDetails.category.slice(1)}`, 25, y);
+                doc.text(`Tipo: ${item.itemDetails.type}`, 25, y + 5);
+                doc.text(`Tamanho: ${item.itemDetails.size}`, 25, y + 10);
+                doc.text(`Gênero: ${item.itemDetails.gender}`, 25, y + 15);
+                doc.text(`Quantidade: ${item.quantity}`, 25, y + 20);
+                y += 30; // Espaço para o próximo item
+            } else if (item.itemType === 'basic_basket') {
+                doc.text(`- Cesta Básica: ${item.itemDetails.generalName} (Qtd: ${item.quantity})`, 25, y);
+                y += 5;
+                if (item.itemDetails.items && item.itemDetails.items.length > 0) {
+                    item.itemDetails.items.forEach(subItem => {
+                        const subItemExpirationDate = subItem.expirationDate ? new Date(subItem.expirationDate.seconds * 1000).toLocaleDateString() : 'N/A';
+                        doc.text(`  - ${subItem.description} (Qtd: ${subItem.quantity}, Val: ${subItemExpirationDate})`, 30, y + 5);
+                        y += 5;
+                    });
+                }
+                y += 10; // Espaço para o próximo item principal
+            }
+
             if (y > doc.internal.pageSize.height - 30) { // Nova página se necessário
                 doc.addPage();
                 y = 20;
@@ -2192,8 +2427,21 @@ async function printPersonHistoryPdf(personData, itemsReceivedHistory) {
                         doc.setFontSize(11);
                         doc.setTextColor(52, 73, 94);
                     }
-                    doc.text(`- ${item.itemDetails.category.charAt(0).toUpperCase() + item.itemDetails.category.slice(1)}: ${item.itemDetails.type} (${item.itemDetails.size}) - Qtd: ${item.quantity}`, 25, y);
-                    y += 7;
+                    if (item.itemType === 'clothing') {
+                        doc.text(`- ${item.itemDetails.category.charAt(0).toUpperCase() + item.itemDetails.category.slice(1)}: ${item.itemDetails.type} (${item.itemDetails.size}) - Qtd: ${item.quantity}`, 25, y);
+                        y += 7;
+                    } else if (item.itemType === 'basic_basket') {
+                        doc.text(`- Cesta Básica: ${item.itemDetails.generalName} (Qtd: ${item.quantity})`, 25, y);
+                        y += 5;
+                        if (item.itemDetails.items && item.itemDetails.items.length > 0) {
+                            item.itemDetails.items.forEach(subItem => {
+                                const subItemExpirationDate = subItem.expirationDate ? new Date(subItem.expirationDate.seconds * 1000).toLocaleDateString() : 'N/A';
+                                doc.text(`  - ${subItem.description} (Qtd: ${subItem.quantity}, Val: ${subItemExpirationDate})`, 30, y + 5);
+                                y += 5;
+                            });
+                        }
+                        y += 5; // Espaço extra após os sub-itens da cesta
+                    }
                 });
             } else {
                 if (y + 10 > doc.internal.pageSize.height - 30) { // Check space for "No items" message
@@ -2217,7 +2465,7 @@ async function printPersonHistoryPdf(personData, itemsReceivedHistory) {
     doc.save(`historico_${personData.name.replace(/\s/g, '_')}.pdf`);
 }
 
-// NOVA FUNÇÃO: Geração de PDF de estoque por tipo
+// NOVA FUNÇÃO: Geração de PDF de estoque por tipo (roupas/calçados)
 async function printStockByTypePdf(type) {
     if (!userId) {
         showMessage("Usuário não autenticado. Por favor, faça login.", 'error');
@@ -2287,6 +2535,443 @@ async function printStockByTypePdf(type) {
     doc.text("Sistema de Gestão de Estoque de Roupas e Calçados - Doações", doc.internal.pageSize.width / 2, doc.internal.pageSize.height - 15, { align: "center" });
 
     doc.save(`relatorio_estoque_${type}.pdf`);
+}
+
+// NOVA FUNÇÃO: Geração de PDF de lista de cestas básicas (melhorada)
+async function printBasicFoodBasketsListPdf() {
+    if (!userId) {
+        showMessage("Usuário não autenticado. Por favor, faça login.", 'error');
+        return;
+    }
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+
+    doc.setFontSize(22);
+    doc.setTextColor(52, 152, 219);
+    doc.text("Relatório de Cestas Básicas", doc.internal.pageSize.width / 2, 20, { align: "center" });
+
+    doc.setFontSize(12);
+    doc.setTextColor(0, 0, 0);
+    doc.text("------------------------------------------------------------------------------------------------------------------------------------------", 10, 25);
+
+    let basketsToPrint = [];
+    try {
+        let basketsQuery = collection(db, `artifacts/${appId}/public/data/basicFoodBaskets`);
+        if (filterCestaBasicaValidade.value) {
+            const filterDateTime = new Date(filterCestaBasicaValidade.value);
+            basketsQuery = query(basketsQuery, where("expirationDate", "<=", filterDateTime));
+        }
+        const querySnapshot = await getDocs(basketsQuery);
+        querySnapshot.forEach(docBasket => {
+            basketsToPrint.push(docBasket.data());
+        });
+    } catch (error) {
+        console.error("Erro ao buscar cestas básicas para relatório:", error);
+        showMessage("Erro ao gerar relatório de cestas básicas.", 'error');
+        return;
+    }
+
+    let y = 40; // Posição Y inicial para as cestas
+
+    if (basketsToPrint.length === 0) {
+        doc.setFontSize(12);
+        doc.setTextColor(52, 73, 94);
+        doc.text("Nenhuma cesta básica encontrada.", doc.internal.pageSize.width / 2, y, { align: "center" });
+    } else {
+        doc.setFontSize(10);
+        doc.setTextColor(52, 73, 94);
+
+        basketsToPrint.forEach(basket => {
+            // Estima a altura necessária para a cesta (nome + quantidade + itens)
+            let estimatedHeight = 25; // Para nome, quantidade e datas
+            if (basket.items && basket.items.length > 0) {
+                estimatedHeight += (basket.items.length * 7); // 7 pontos por linha de item
+            }
+
+            if (y + estimatedHeight > doc.internal.pageSize.height - 30) { // Verifica se cabe na página
+                doc.addPage();
+                y = 20; // Reset Y para nova página
+                doc.setFontSize(10);
+                doc.setTextColor(52, 73, 94);
+            }
+
+            const receivedDate = basket.receivedDate ? new Date(basket.receivedDate.seconds * 1000).toLocaleString() : 'N/A';
+            const generalExpirationDate = basket.items && basket.items.length > 0
+                ? new Date(Math.min(...basket.items.map(item => item.expirationDate ? item.expirationDate.seconds * 1000 : Infinity))).toLocaleDateString()
+                : 'N/A'; // Pega a menor data de validade dos itens
+
+            doc.setFontSize(12);
+            doc.setTextColor(44, 62, 80);
+            doc.text(`Cesta: ${basket.generalName} (Qtd: ${basket.quantity})`, 15, y);
+            y += 7;
+            doc.setFontSize(10);
+            doc.setTextColor(52, 73, 94);
+            doc.text(`Entrada em: ${receivedDate}`, 15, y);
+            y += 5;
+            doc.text(`Validade Geral (menor): ${generalExpirationDate}`, 15, y);
+            y += 7;
+
+            if (basket.items && basket.items.length > 0) {
+                doc.setFontSize(10);
+                doc.setTextColor(52, 73, 94);
+                doc.text("Itens na Cesta:", 20, y);
+                y += 5;
+                basket.items.forEach(item => {
+                    const itemExpirationDate = item.expirationDate ? new Date(item.expirationDate.seconds * 1000).toLocaleDateString() : 'N/A';
+                    doc.text(`- ${item.description} (Qtd: ${item.quantity}, Val: ${itemExpirationDate})`, 25, y);
+                    y += 5;
+                });
+            } else {
+                doc.text("Nenhum item detalhado nesta cesta.", 20, y);
+                y += 5;
+            }
+            y += 10; // Espaço entre as cestas
+        });
+    }
+
+    doc.setFontSize(10);
+    doc.setTextColor(127, 140, 141);
+    doc.text("Sistema de Gestão de Estoque de Roupas e Calçados - Doações", doc.internal.pageSize.width / 2, doc.internal.pageSize.height - 15, { align: "center" });
+
+    doc.save(`relatorio_cestas_basicas.pdf`);
+}
+
+
+// --- Gestão de Cestas Básicas (NOVO) ---
+
+// Adiciona uma nova linha de item para o formulário de cesta básica
+function addCestaBasicaItemRow(initialItem = {}) {
+    if (!userId) {
+        showMessage("Você não tem permissão para adicionar itens à cesta básica.", 'error');
+        return;
+    }
+    const initialMessage = cestaBasicaItemsContainer.querySelector('p.text-gray-500');
+    if (initialMessage) {
+        initialMessage.remove();
+    }
+
+    const newRow = document.createElement('div');
+    newRow.className = 'cesta-basica-item-row flex flex-col sm:flex-row sm:items-end gap-2 mb-2 p-2 border rounded-md bg-white shadow-sm';
+    newRow.innerHTML = `
+        <div class="flex-grow">
+            <label class="block text-sm font-medium text-gray-700">Descrição do Item</label>
+            <input type="text" class="item-description mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm" placeholder="Ex: Arroz 5kg, Leite 1L" required>
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-700">Qtd</label>
+            <input type="number" min="1" value="1" class="item-quantity mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm" required>
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-700">Validade</label>
+            <input type="date" class="item-expiration-date mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm" required>
+        </div>
+        <button type="button" class="remove-cesta-basica-item-row-button px-3 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 transition duration-150 ease-in-out">Remover</button>
+    `;
+    cestaBasicaItemsContainer.appendChild(newRow);
+
+    // Preenche os campos se houver dados iniciais (para edição)
+    if (initialItem.description) newRow.querySelector('.item-description').value = initialItem.description;
+    if (initialItem.quantity) newRow.querySelector('.item-quantity').value = initialItem.quantity;
+    if (initialItem.expirationDate) {
+        // Converte o Timestamp do Firestore para o formato de data do input HTML
+        const date = new Date(initialItem.expirationDate.seconds * 1000);
+        newRow.querySelector('.item-expiration-date').value = date.toISOString().split('T')[0];
+    }
+
+
+    newRow.querySelector('.remove-cesta-basica-item-row-button').addEventListener('click', () => {
+        newRow.remove();
+        if (cestaBasicaItemsContainer.children.length === 0) {
+            cestaBasicaItemsContainer.innerHTML = '<p class="text-gray-500 text-center">Adicione itens para detalhar o conteúdo da cesta.</p>';
+        }
+    });
+}
+
+// Handler de submit para o formulário de recebimento de cesta básica
+const defaultRecebimentoCestaBasicaSubmitHandler = async (e) => {
+    e.preventDefault();
+    const generalName = cestaBasicaNomeGeral.value; // Novo campo
+    const quantity = parseInt(cestaBasicaQuantidadeGeral.value); // Quantidade geral de cestas
+
+    const itemRows = cestaBasicaItemsContainer.querySelectorAll('.cesta-basica-item-row');
+    const itemsInBasket = [];
+
+    if (!userId) {
+        showMessage("Usuário não autenticado. Por favor, faça login.", 'error');
+        return;
+    }
+    if (isNaN(quantity) || quantity <= 0) {
+        showMessage("Quantidade de cestas deve ser um número positivo.", 'error');
+        return;
+    }
+    if (itemRows.length === 0) {
+        showMessage("Por favor, adicione pelo menos um item para detalhar a cesta.", 'error');
+        return;
+    }
+
+    // Coleta os itens detalhados da cesta
+    for (const row of itemRows) {
+        const description = row.querySelector('.item-description').value;
+        const itemQuantity = parseInt(row.querySelector('.item-quantity').value);
+        const expirationDate = new Date(row.querySelector('.item-expiration-date').value);
+
+        if (!description || isNaN(itemQuantity) || itemQuantity <= 0 || !expirationDate) {
+            showMessage("Por favor, preencha todos os campos dos itens da cesta corretamente.", 'error');
+            return;
+        }
+        itemsInBasket.push({
+            description: description,
+            quantity: itemQuantity,
+            expirationDate: expirationDate
+        });
+    }
+
+    try {
+        await addDoc(collection(db, `artifacts/${appId}/public/data/basicFoodBaskets`), {
+            generalName: generalName, // Salva o nome geral da cesta
+            quantity: quantity, // Salva a quantidade geral de cestas
+            items: itemsInBasket, // Salva o array de itens detalhados
+            receivedDate: new Date(),
+            addedBy: userName,
+            addedById: userId
+        });
+        showMessage('Cesta básica registrada com sucesso!', 'success');
+        recebimentoCestaBasicaForm.reset();
+        cestaBasicaItemsContainer.innerHTML = '<p class="text-gray-500 text-center">Adicione itens para detalhar o conteúdo da cesta.</p>'; // Limpa os itens
+        loadDashboardOverviewData(); // Atualiza a visão geral após a entrada
+    } catch (error) {
+        console.error("Erro ao registrar cesta básica:", error);
+        showMessage(`Erro ao registrar cesta básica: ${error.message}`, 'error');
+    }
+};
+
+// Carrega e exibe as cestas básicas
+async function loadBasicFoodBaskets(filterDate = null) {
+    if (!userId) return;
+    if (unsubscribeCestasBasicas) {
+        unsubscribeCestasBasicas();
+    }
+
+    let basketsQuery = collection(db, `artifacts/${appId}/public/data/basicFoodBaskets`);
+
+    if (filterDate) {
+        const filterDateTime = new Date(filterDate);
+        // Filtra por data de validade menor ou igual à data selecionada
+        // Para cestas, vamos filtrar pela data de validade mais antiga entre seus itens.
+        // Isso requer uma consulta mais complexa ou filtrar em memória.
+        // Por simplicidade, vamos filtrar pela data de validade mais antiga de qualquer item na cesta.
+        // Isso não é diretamente suportado por uma única query `where` no Firestore para arrays aninhados.
+        // A melhor abordagem é buscar tudo e filtrar no cliente, ou reestruturar os dados se a filtragem for crítica.
+        // Por enquanto, manteremos a filtragem pela data geral da cesta se ela for adicionada,
+        // ou faremos uma filtragem básica em memória se não houver um campo de validade geral.
+        // Para a nova estrutura, não temos um campo `expirationDate` no nível superior da cesta.
+        // Portanto, a filtragem por validade será feita em memória.
+    }
+
+    unsubscribeCestasBasicas = onSnapshot(basketsQuery, (snapshot) => {
+        currentCestasBasicasList.innerHTML = '';
+        let filteredBaskets = [];
+
+        snapshot.docs.forEach(docBasket => {
+            const data = docBasket.data();
+            let passesFilter = true;
+
+            if (filterDate) {
+                const filterDateTime = new Date(filterDate);
+                // Encontra a menor data de validade entre os itens da cesta
+                let minExpirationDate = Infinity;
+                if (data.items && data.items.length > 0) {
+                    data.items.forEach(item => {
+                        if (item.expirationDate && item.expirationDate.seconds) {
+                            minExpirationDate = Math.min(minExpirationDate, item.expirationDate.seconds * 1000);
+                        }
+                    });
+                }
+                if (minExpirationDate !== Infinity && new Date(minExpirationDate) > filterDateTime) {
+                    passesFilter = false;
+                } else if (minExpirationDate === Infinity && filterDate) { // Se não tem itens com validade e um filtro é aplicado
+                    passesFilter = false;
+                }
+            }
+
+            if (passesFilter) {
+                filteredBaskets.push({ id: docBasket.id, ...data });
+            }
+        });
+
+        if (filteredBaskets.length === 0) {
+            currentCestasBasicasList.innerHTML = '<li class="text-gray-500 p-2">Nenhuma cesta básica registrada ainda ou correspondente ao filtro.</li>';
+            return;
+        }
+
+        filteredBaskets.forEach(data => {
+            const li = document.createElement('li');
+            li.className = 'list-item flex-col items-start'; // Usar flex-col para melhor layout
+            const receivedDate = data.receivedDate ? new Date(data.receivedDate.seconds * 1000).toLocaleString() : 'N/A';
+            const addedBy = data.addedBy || 'Desconhecido';
+
+            let itemsHtml = '';
+            if (data.items && data.items.length > 0) {
+                itemsHtml = '<div class="w-full mt-2"><h5 class="font-semibold text-gray-700">Itens da Cesta:</h5><ul class="list-disc list-inside text-gray-600 text-sm">';
+                data.items.forEach(item => {
+                    const expirationDate = item.expirationDate ? new Date(item.expirationDate.seconds * 1000).toLocaleDateString() : 'N/A';
+                    itemsHtml += `<li>${item.description} (Qtd: ${item.quantity}, Val: ${expirationDate})</li>`;
+                });
+                itemsHtml += '</ul></div>';
+            } else {
+                itemsHtml = '<span class="text-gray-500 text-sm mt-2">Nenhum item detalhado.</span>';
+            }
+
+            li.innerHTML = `
+                <span><strong>Nome Geral:</strong> ${data.generalName}</span>
+                <span><strong>Quantidade de Cestas:</strong> ${data.quantity}</span>
+                <span><strong>Entrada por:</strong> ${addedBy} em ${receivedDate}</span>
+                ${itemsHtml}
+                <div class="w-full flex justify-end flex-wrap gap-2 mt-3">
+                    <button class="edit-button bg-yellow-500 hover:bg-yellow-600 text-white rounded-md shadow-sm" data-id="${data.id}" data-type="cesta-basica">Editar</button>
+                    <button class="delete-button bg-red-500 hover:bg-red-600 text-white rounded-md shadow-sm" data-id="${data.id}" data-type="cesta-basica">Excluir</button>
+                </div>
+            `;
+            currentCestasBasicasList.appendChild(li);
+        });
+
+        document.querySelectorAll('.edit-button[data-type="cesta-basica"]').forEach(button => {
+            if (userId) {
+                button.classList.remove('hidden');
+                button.onclick = (e) => editBasicFoodBasket(e.target.dataset.id);
+            } else {
+                button.classList.add('hidden');
+            }
+        });
+        document.querySelectorAll('.delete-button[data-type="cesta-basica"]').forEach(button => {
+            if (userId) {
+                button.classList.remove('hidden');
+                button.onclick = (e) => deleteBasicFoodBasket(e.target.dataset.id);
+            } else {
+                button.classList.add('hidden');
+            }
+        });
+    }, (error) => {
+        console.error("Erro ao carregar cestas básicas:", error);
+        showMessage("Erro ao carregar cestas básicas.", 'error');
+    });
+}
+
+// Edita uma cesta básica existente
+async function editBasicFoodBasket(id) {
+    if (!userId) {
+        showMessage("Você não tem permissão para editar cestas básicas.", 'error');
+        return;
+    }
+    try {
+        const basketDocRef = doc(db, `artifacts/${appId}/public/data/basicFoodBaskets`, id);
+        const basketDoc = await getDoc(basketDocRef);
+        if (basketDoc.exists()) {
+            const data = basketDoc.data();
+            cestaBasicaNomeGeral.value = data.generalName;
+            cestaBasicaQuantidadeGeral.value = data.quantity;
+
+            // Limpa e preenche os itens da cesta para edição
+            cestaBasicaItemsContainer.innerHTML = '';
+            if (data.items && data.items.length > 0) {
+                data.items.forEach(item => addCestaBasicaItemRow(item));
+            } else {
+                cestaBasicaItemsContainer.innerHTML = '<p class="text-gray-500 text-center">Adicione itens para detalhar o conteúdo da cesta.</p>';
+            }
+
+            const submitButton = recebimentoCestaBasicaForm.querySelector('button[type="submit"]');
+            submitButton.textContent = 'Atualizar Cesta Básica';
+            submitButton.classList.remove('bg-green-600', 'hover:bg-green-700');
+            submitButton.classList.add('bg-indigo-600', 'hover:bg-indigo-700');
+
+            recebimentoCestaBasicaForm.removeEventListener('submit', defaultRecebimentoCestaBasicaSubmitHandler);
+            if (recebimentoCestaBasicaForm._currentSubmitHandler) {
+                recebimentoCestaBasicaForm.removeEventListener('submit', recebimentoCestaBasicaForm._currentSubmitHandler);
+            }
+
+            const newSubmitHandler = async (e) => {
+                e.preventDefault();
+                const updatedGeneralName = cestaBasicaNomeGeral.value;
+                const updatedQuantity = parseInt(cestaBasicaQuantidadeGeral.value);
+
+                const updatedItemRows = cestaBasicaItemsContainer.querySelectorAll('.cesta-basica-item-row');
+                const updatedItemsInBasket = [];
+
+                if (isNaN(updatedQuantity) || updatedQuantity <= 0) {
+                    showMessage("Quantidade de cestas deve ser um número positivo.", 'error');
+                    return;
+                }
+                if (updatedItemRows.length === 0) {
+                    showMessage("Por favor, adicione pelo menos um item para detalhar a cesta.", 'error');
+                    return;
+                }
+
+                for (const row of updatedItemRows) {
+                    const description = row.querySelector('.item-description').value;
+                    const itemQuantity = parseInt(row.querySelector('.item-quantity').value);
+                    const expirationDate = new Date(row.querySelector('.item-expiration-date').value);
+
+                    if (!description || isNaN(itemQuantity) || itemQuantity <= 0 || !expirationDate) {
+                        showMessage("Por favor, preencha todos os campos dos itens da cesta corretamente.", 'error');
+                        return;
+                    }
+                    updatedItemsInBasket.push({
+                        description: description,
+                        quantity: itemQuantity,
+                        expirationDate: expirationDate
+                    });
+                }
+
+
+                await updateDoc(basketDocRef, {
+                    generalName: updatedGeneralName,
+                    quantity: updatedQuantity,
+                    items: updatedItemsInBasket, // Salva o array de itens detalhados atualizado
+                    lastUpdated: new Date(),
+                    lastUpdatedBy: userName,
+                    lastUpdatedById: userId
+                });
+                showMessage('Cesta básica atualizada com sucesso!', 'success');
+                recebimentoCestaBasicaForm.reset();
+                cestaBasicaItemsContainer.innerHTML = '<p class="text-gray-500 text-center">Adicione itens para detalhar o conteúdo da cesta.</p>'; // Limpa os itens
+                submitButton.textContent = 'Registrar Cesta Básica';
+                submitButton.classList.remove('bg-indigo-600', 'hover:bg-indigo-700');
+                submitButton.classList.add('bg-green-600', 'hover:bg-green-700');
+                recebimentoCestaBasicaForm.removeEventListener('submit', newSubmitHandler);
+                recebimentoCestaBasicaForm.addEventListener('submit', defaultRecebimentoCestaBasicaSubmitHandler);
+                loadBasicFoodBaskets();
+                loadDashboardOverviewData();
+                recebimentoCestaBasicaForm._currentSubmitHandler = null;
+            };
+
+            recebimentoCestaBasicaForm._currentSubmitHandler = newSubmitHandler;
+            recebimentoCestaBasicaForm.addEventListener('submit', newSubmitHandler);
+
+            showDashboardContent(cestasBasicasSection);
+        }
+    } catch (error) {
+        console.error("Erro ao editar cesta básica:", error);
+        showMessage(`Erro ao editar cesta básica: ${error.message}`, 'error');
+    }
+}
+
+// Exclui uma cesta básica
+async function deleteBasicFoodBasket(id) {
+    if (!userId) {
+        showMessage("Você não tem permissão para excluir cestas básicas.", 'error');
+        return;
+    }
+    if (await showCustomConfirm('Tem certeza que deseja excluir esta cesta básica?')) {
+        try {
+            await deleteDoc(doc(db, `artifacts/${appId}/public/data/basicFoodBaskets`, id));
+            showMessage('Cesta básica excluída com sucesso!', 'success');
+            loadDashboardOverviewData();
+        } catch (error) {
+            console.error("Erro ao excluir cesta básica:", error);
+            showMessage(`Erro ao excluir cesta básica: ${error.message}`, 'error');
+        }
+    }
 }
 
 
@@ -2372,6 +3057,7 @@ document.addEventListener('DOMContentLoaded', () => {
     navAgendamentos = document.getElementById('nav-agendamentos');
     navRelatorios = document.getElementById('nav-relatorios');
     navPesquisa = document.getElementById('nav-pesquisa');
+    navCestasBasicas = document.getElementById('nav-cestas-basicas'); // Inicializa navCestasBasicas
 
     dashboardOverviewSection = document.getElementById('dashboard-overview-section');
     entradaSection = document.getElementById('entrada-section');
@@ -2381,6 +3067,7 @@ document.addEventListener('DOMContentLoaded', () => {
     agendamentosSection = document.getElementById('agendamentos-section');
     relatoriosSection = document.getElementById('relatorios-section');
     pesquisaSection = document.getElementById('pesquisa-section');
+    cestasBasicasSection = document.getElementById('cestas-basicas-section'); // Inicializa cestasBasicasSection
 
     entradaForm = document.getElementById('entrada-form');
     saidaForm = document.getElementById('saida-form');
@@ -2388,11 +3075,14 @@ document.addEventListener('DOMContentLoaded', () => {
     cadastroVoluntariosForm = document.getElementById('cadastro-voluntarios-form');
     agendamentoForm = document.getElementById('agendamento-form');
     searchForm = document.getElementById('search-form');
+    recebimentoCestaBasicaForm = document.getElementById('recebimento-cesta-basica-form'); // Inicializa recebimentoCestaBasicaForm
 
     currentStockList = document.getElementById('current-stock-list');
     currentPeopleList = document.getElementById('current-people-list');
     currentVolunteersList = document.getElementById('current-volunteers-list');
     currentAgendamentosList = document.getElementById('current-agendamentos-list');
+    currentCestasBasicasList = document.getElementById('current-cestas-basicas-list'); // Inicializa currentCestasBasicasList
+
     saidaPessoaSelect = document.getElementById('saida-pessoa');
     saidaItemsContainer = document.getElementById('saida-items-container');
     addItemRowButton = document.getElementById('add-item-row');
@@ -2427,9 +3117,17 @@ document.addEventListener('DOMContentLoaded', () => {
     notificationMessageContent = document.getElementById('notification-message-content');
     notificationOkButton = document.getElementById('notification-ok-button'); // Inicializa o botão "Entendi"
 
-    // Inicialização das novas variáveis para o filtro e impressão de estoque
+    // Inicialização das novas variáveis para o filtro e impressão de estoque (itens de roupa/calçados)
     filterItemTypeSelect = document.getElementById('filter-item-type');
     printStockByTypeButton = document.getElementById('print-stock-by-type-button');
+
+    // Inicialização das novas variáveis para o formulário e filtro de cestas básicas
+    cestaBasicaNomeGeral = document.getElementById('cesta-basica-nome-geral'); // Novo
+    cestaBasicaQuantidadeGeral = document.getElementById('cesta-basica-quantidade-geral'); // Novo
+    cestaBasicaItemsContainer = document.getElementById('cesta-basica-items-container'); // Novo
+    addCestaBasicaItemRowButton = document.getElementById('add-cesta-basica-item-row'); // Novo
+    filterCestaBasicaValidade = document.getElementById('filter-cesta-basica-validade');
+    printCestasBasicasButton = document.getElementById('print-cestas-basicas-button');
 
 
     // --- Fim da Inicialização das Variáveis Globais de Elementos do DOM ---
@@ -2592,6 +3290,12 @@ document.addEventListener('DOMContentLoaded', () => {
     navPesquisa.addEventListener('click', () => {
         showDashboardContent(pesquisaSection);
     });
+    // NOVO: Event listener para a navegação de cestas básicas
+    navCestasBasicas.addEventListener('click', () => {
+        showDashboardContent(cestasBasicasSection);
+        loadBasicFoodBaskets(); // Carrega as cestas básicas
+        cestaBasicaItemsContainer.innerHTML = '<p class="text-gray-500 text-center">Adicione itens para detalhar o conteúdo da cesta.</p>'; // Limpa os itens da cesta
+    });
 
     // Anexa os handlers de submit aos formulários
     entradaForm.addEventListener('submit', defaultEntradaSubmitHandler);
@@ -2600,11 +3304,15 @@ document.addEventListener('DOMContentLoaded', () => {
     saidaForm.addEventListener('submit', defaultSaidaSubmitHandler);
     agendamentoForm.addEventListener('submit', defaultAgendamentoSubmitHandler);
     searchForm.addEventListener('submit', defaultSearchSubmitHandler);
+    recebimentoCestaBasicaForm.addEventListener('submit', defaultRecebimentoCestaBasicaSubmitHandler); // Anexa handler para o novo formulário
 
     // Anexa listener para o botão de adicionar linha de item na saída
     addItemRowButton.addEventListener('click', addItemRow);
     // Anexa listener para o botão de adicionar linha de item no agendamento
     addAgendamentoItemRowButton.addEventListener('click', addAgendamentoItemRow);
+    // Anexa listener para o botão de adicionar linha de item na cesta básica
+    addCestaBasicaItemRowButton.addEventListener('click', addCestaBasicaItemRow); // Novo
+
     // Anexa listener para o botão de imprimir último recibo
     printLastReceiptButton.addEventListener('click', () => {
         if (lastExitTransaction) {
@@ -2637,14 +3345,14 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // NOVO: Event listener para o filtro de tipo de item
+    // Event listener para o filtro de tipo de item (roupas/calçados)
     if (filterItemTypeSelect) {
         filterItemTypeSelect.addEventListener('change', (e) => {
             loadItems(e.target.value);
         });
     }
 
-    // NOVO: Event listener para o botão de imprimir estoque por tipo
+    // Event listener para o botão de imprimir estoque por tipo (roupas/calçados)
     if (printStockByTypeButton) {
         printStockByTypeButton.addEventListener('click', () => {
             const selectedType = filterItemTypeSelect.value;
@@ -2653,6 +3361,20 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 showMessage('Por favor, selecione um tipo para imprimir o estoque.', 'info');
             }
+        });
+    }
+
+    // NOVO: Event listener para o filtro de validade de cesta básica
+    if (filterCestaBasicaValidade) {
+        filterCestaBasicaValidade.addEventListener('change', (e) => {
+            loadBasicFoodBaskets(e.target.value);
+        });
+    }
+
+    // NOVO: Event listener para o botão de imprimir cestas básicas
+    if (printCestasBasicasButton) {
+        printCestasBasicasButton.addEventListener('click', () => {
+            printBasicFoodBasketsListPdf();
         });
     }
 
