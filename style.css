@@ -1,0 +1,149 @@
+/* style.css */
+
+/* Estilos básicos para seções de autenticação */
+.auth-section {
+    transition: opacity 0.3s ease-in-out;
+}
+
+/* Estilos para seções de conteúdo do dashboard */
+.content-section {
+    transition: opacity 0.3s ease-in-out;
+}
+
+/* Estilo para botões de navegação do dashboard */
+.nav-button {
+    white-space: nowrap; /* Evita que o texto quebre em várias linhas */
+    min-width: 150px; /* Garante uma largura mínima para os botões */
+}
+
+/* Estilo para a caixa de mensagem flutuante */
+#message-box {
+    z-index: 1000; /* Garante que a caixa de mensagem esteja sobre outros elementos */
+}
+
+/* Estilos para listas de itens (estoque, pessoas, relatórios) */
+#current-stock-list li,
+#current-people-list li,
+#relatorio-estoque-list li,
+#relatorio-atendimentos-list li,
+#search-results-list li,
+.saida-item-row { /* Adicionado estilo para as linhas de item de saída */
+    background-color: #ffffff;
+    border: 1px solid #e5e7eb;
+    padding: 12px;
+    border-radius: 8px;
+    display: flex;
+    flex-wrap: wrap; /* Permite que os itens quebrem em telas menores */
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    margin-bottom: 10px; /* Espaçamento entre as linhas */
+}
+
+#current-stock-list li span,
+#current-people-list li span,
+#relatorio-estoque-list li span,
+#relatorio-atendimentos-list li span,
+#search-results-list li span,
+.saida-item-row .item-details span { /* Estilo para detalhes dentro da linha de item de saída */
+    font-size: 0.9rem;
+    color: #4b5563;
+    margin-right: 10px; /* Espaçamento entre os spans */
+    flex-grow: 1; /* Permite que o texto ocupe o espaço disponível */
+    min-width: 120px; /* Garante que o texto não fique muito apertado */
+}
+
+#current-stock-list li button,
+#current-people-list li button,
+.saida-item-row button { /* Estilo para botões dentro da linha de item de saída */
+    margin-left: 8px;
+    padding: 6px 12px;
+    font-size: 0.8rem;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background-color 0.2s ease-in-out;
+}
+
+/* Cores específicas para botões de ação */
+.edit-button {
+    background-color: #3b82f6; /* blue-500 */
+    color: white;
+}
+.edit-button:hover {
+    background-color: #2563eb; /* blue-600 */
+}
+
+.delete-button {
+    background-color: #ef4444; /* red-500 */
+    color: white;
+}
+.delete-button:hover {
+    background-color: #dc2626; /* red-600 */
+}
+
+.view-history-button {
+    background-color: #60a5fa; /* blue-400 */
+    color: white;
+}
+.view-history-button:hover {
+    background-color: #3b82f6; /* blue-500 */
+}
+
+.remove-item-row-button {
+    background-color: #f59e0b; /* amber-500 */
+    color: white;
+}
+.remove-item-row-button:hover {
+    background-color: #d97706; /* amber-600 */
+}
+
+
+/* Media Queries para Responsividade */
+@media (max-width: 768px) {
+    #auth-wrapper { /* Ajusta o wrapper de autenticação para telas menores */
+        max-width: 100%;
+        padding: 1rem;
+    }
+
+    #dashboard-section { /* Ajusta o dashboard para telas menores */
+        max-width: 100%;
+        padding: 1rem;
+    }
+
+    .nav-button {
+        width: 100%; /* Botões de navegação ocupam toda a largura em telas pequenas */
+        margin-bottom: 0.5rem;
+    }
+
+    .flex-wrap {
+        flex-direction: column; /* Empilha os botões em telas pequenas */
+    }
+
+    #current-stock-list li,
+    #current-people-list li,
+    #relatorio-estoque-list li,
+    #relatorio-atendimentos-list li,
+    #search-results-list li,
+    .saida-item-row {
+        flex-direction: column; /* Empilha os detalhes do item em telas pequenas */
+        align-items: flex-start;
+    }
+
+    #current-stock-list li span,
+    #current-people-list li span,
+    #relatorio-estoque-list li span,
+    #relatorio-atendimentos-list li span,
+    #search-results-list li span,
+    .saida-item-row .item-details span {
+        margin-right: 0;
+        margin-bottom: 5px;
+    }
+
+    #current-stock-list li button,
+    #current-people-list li button,
+    .saida-item-row button {
+        margin-left: 0;
+        margin-top: 5px;
+        width: 100%; /* Botões de ação ocupam toda a largura */
+    }
+}

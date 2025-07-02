@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Gestão de Doações</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        /* Estilos globais para o corpo e contêiner principal */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f4f7f6; /* Um cinza claro para o fundo */
+        }
+        .container {
+            max-width: 1200px; /* Largura máxima do conteúdo */
+            margin: 0 auto; /* Centraliza o contêiner */
+            padding: 20px; /* Preenchimento interno */
+        }
+
+        /* Estilos para a barra lateral (sidebar) e conteúdo principal */
+        .sidebar, .main-content {
+            background-color: #ffffff; /* Fundo branco */
+            border-radius: 0.75rem; /* Cantos arredondados (tailwind rounded-xl) */
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); /* Sombra suave (tailwind shadow-md) */
+            padding: 1.5rem; /* Preenchimento interno */
+        }
+
+        /* Estilos para os links de navegação na sidebar */
+        .nav-link {
+            display: block; /* Ocupa a largura total */
+            padding: 0.75rem 1rem; /* Preenchimento interno */
+            border-radius: 0.5rem; /* Cantos arredondados (tailwind rounded-lg) */
+            margin-bottom: 0.5rem; /* Margem inferior */
+            font-weight: 500; /* Peso da fonte médio */
+            color: #4a5568; /* Cor do texto cinza escuro */
+            transition: all 0.2s ease-in-out; /* Transição suave para hover */
+        }
+        .nav-link:hover {
+            background-color: #edf2f7; /* Fundo cinza claro no hover */
+            color: #2d3748; /* Cor do texto mais escura no hover */
+        }
+        .nav-link.active {
+            background-color: #4c51bf; /* Fundo índigo para o link ativo */
+            color: #ffffff; /* Texto branco para o link ativo */
+        }
+
+        /* Estilos para grupos de formulário (labels e inputs) */
+        .form-group label {
+            font-weight: 500; /* Peso da fonte médio */
+            color: #2d3748; /* Cor do texto cinza escuro */
+        }
+        .form-input, .form-select, .form-textarea {
+            width: 100%; /* Ocupa a largura total */
+            padding: 0.75rem 1rem; /* Preenchimento interno */
+            margin-top: 0.25rem; /* Margem superior */
+            border: 1px solid #e2e8f0; /* Borda cinza clara */
+            border-radius: 0.375rem; /* Cantos arredondados (tailwind rounded-md) */
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05); /* Sombra suave (tailwind shadow-sm) */
+            transition: all 0.2s ease-in-out; /* Transição suave para foco */
+        }
+        .form-input:focus, .form-select:focus, .form-textarea:focus {
+            outline: none; /* Remove o contorno padrão do foco */
+            border-color: #667eea; /* Borda índigo no foco */
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.45); /* Sombra de anel índigo no foco */
+        }
+
+        /* Estilos para botões gerais */
+        .btn {
+            padding: 0.75rem 1.5rem; /* Preenchimento interno */
+            border-radius: 0.5rem; /* Cantos arredondados */
+            font-weight: 600; /* Peso da fonte semi-bold */
+            transition: all 0.2s ease-in-out; /* Transição suave para hover */
+            cursor: pointer; /* Cursor de ponteiro */
+        }
+        .btn-primary {
+            background-color: #4c51bf; /* Fundo índigo principal */
+            color: #ffffff; /* Texto branco */
+        }
+        .btn-primary:hover {
+            background-color: #5a67d8; /* Fundo índigo mais escuro no hover */
+        }
+        .btn-secondary {
+            background-color: #e2e8f0; /* Fundo cinza secundário */
+            color: #2d3748; /* Texto cinza escuro */
+        }
+        .btn-secondary:hover {
+            background-color: #cbd5e0; /* Fundo cinza mais escuro no hover */
+        }
+
+        /* Estilos para itens de lista (estoque, pessoas, voluntários) */
+        .list-container {
+            max-height: 400px; /* Altura máxima para as listas */
+            overflow-y: auto; /* Adiciona barra de rolagem vertical se o conteúdo exceder */
+            border: 1px solid #e2e8f0; /* Borda sutil */
+            border-radius: 0.5rem;
+            padding: 0.5rem;
+            background-color: #fcfcfc;
+        }
+
+        .list-item {
+            background-color: #f7fafc; /* Fundo cinza muito claro */
+            padding: 1rem; /* Preenchimento interno */
+            border-radius: 0.5rem; /* Cantos arredondados */
+            margin-bottom: 0.5rem; /* Margem inferior */
+            display: flex; /* Layout flexível */
+            flex-wrap: wrap; /* Permite quebrar linha em telas menores */
+            gap: 0.5rem; /* Espaçamento entre os itens flexíveis */
+            align-items: center; /* Alinha itens verticalmente ao centro */
+            justify-content: space-between; /* Distribui itens com espaço entre eles */
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05); /* Sombra suave */
+            border-bottom: 1px solid #e2e8f0; /* Separador entre itens */
+        }
+        .list-item:last-child {
+            border-bottom: none; /* Remove a borda do último item */
+        }
+        .list-item span {
+            flex-basis: calc(30% - 1rem); /* Base flexível para 3 colunas, ajusta para espaçamento */
+            font-size: 0.9rem; /* Tamanho da fonte */
+            color: #4a5568; /* Cor do texto cinza */
+            word-break: break-word; /* Quebra palavras longas */
+        }
+        .list-item button {
+            padding: 0.4rem 0.8rem; /* Preenchimento interno dos botões */
+            font-size: 0.8rem; /* Tamanho da fonte dos botões */
+            border-radius: 0.3rem; /* Cantos arredondados dos botões */
+            margin-left: 0.5rem; /* Margem à esquerda */
+            transition: background-color 0.2s ease-in-out, transform 0.1s ease-in-out;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+        }
+        .list-item button:hover {
+            transform: translateY(-1px); /* Pequeno efeito de elevação no hover */
+        }
+
+        /* Estilos para os contêineres dos gráficos */
+        .chart-container {
+            min-height: 300px; /* Altura mínima para os gráficos */
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background-color: #f7fafc; /* Fundo cinza muito claro */
+            padding: 1rem;
+            border-radius: 0.75rem;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+        .chart-container canvas {
+            max-height: 280px; /* Limita a altura do canvas dentro do container */
+            width: 100% !important; /* Garante que o canvas ocupe a largura total */
+            height: auto !important; /* Mantém a proporção */
+        }
+
+        /* Media queries para responsividade em telas menores (mobile) */
+        @media (max-width: 768px) {
+            .list-item {
+                flex-direction: column; /* Empilha os itens verticalmente */
+                align-items: flex-start; /* Alinha itens à esquerda */
+            }
+            .list-item span {
+                flex-basis: 100%; /* Ocupa a largura total */
+            }
+            .list-item button {
+                margin-top: 0.5rem; /* Margem superior */
+                margin-left: 0; /* Remove margem à esquerda */
+                width: 100%; /* Ocupa a largura total */
+            }
+        }
+
+        /* Estilos para modais (pop-ups) */
+        .modal {
+            background-color: rgba(0, 0, 0, 0.5); /* Fundo semi-transparente escuro */
+        }
+        .modal-content {
+            background-color: #ffffff; /* Fundo branco */
+            border-radius: 0.75rem; /* Cantos arredondados */
+            padding: 1.5rem; /* Preenchimento interno */
+            max-width: 600px; /* Largura máxima */
+            width: 90%; /* Largura responsiva */
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center">
+
+    <!-- Authentication Wrapper -->
+    <div id="auth-wrapper" class="w-full max-w-md bg-white p-8 rounded-xl shadow-lg hidden">
+        <!-- Login Section -->
+        <section id="login-section" class="space-y-6">
+            <h2 class="text-3xl font-bold text-center text-gray-800">Login</h2>
+            <form id="login-form" class="space-y-4">
+                <div>
+                    <label for="login-email" class="block text-sm font-medium text-gray-700">Email</label>
+                    <input type="email" id="login-email" name="login-email" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                </div>
+                <div>
+                    <label for="login-password" class="block text-sm font-medium text-gray-700">Senha</label>
+                    <input type="password" id="login-password" name="login-password" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                </div>
+                <button type="submit" class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                    Entrar
+                </button>
+            </form>
+            <p class="text-center text-sm text-gray-600">
+                Não tem uma conta? <a href="#" id="show-register" class="font-medium text-indigo-600 hover:text-indigo-500">Cadastre-se</a>
+            </p>
+            <p class="text-center text-sm text-gray-600">
+                Esqueceu a senha? <a href="#" id="show-reset-password" class="font-medium text-indigo-600 hover:text-indigo-500">Redefinir Senha</a>
+            </p>
+        </section>
+
+        <!-- Register Section -->
+        <section id="register-section" class="space-y-6 hidden">
+            <h2 class="text-3xl font-bold text-center text-gray-800">Cadastro</h2>
+            <form id="register-form" class="space-y-4">
+                <div>
+                    <label for="register-full-name" class="block text-sm font-medium text-gray-700">Nome Completo</label>
+                    <input type="text" id="register-full-name" name="register-full-name" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                </div>
+                <div>
+                    <label for="register-email" class="block text-sm font-medium text-gray-700">Email</label>
+                    <input type="email" id="register-email" name="register-email" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                </div>
+                <div>
+                    <label for="register-password" class="block text-sm font-medium text-gray-700">Senha</label>
+                    <input type="password" id="register-password" name="register-password" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                </div>
+                <div>
+                    <label for="register-contact-number" class="block text-sm font-medium text-gray-700">Número de Contato</label>
+                    <input type="text" id="register-contact-number" name="register-contact-number" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                </div>
+                <div>
+                    <label for="register-cep" class="block text-sm font-medium text-gray-700">CEP</label>
+                    <input type="text" id="register-cep" name="register-cep" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                </div>
+                <div>
+                    <label for="register-city" class="block text-sm font-medium text-gray-700">Cidade</label>
+                    <input type="text" id="register-city" name="register-city" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                </div>
+                <div>
+                    <label for="register-street" class="block text-sm font-medium text-gray-700">Rua</label>
+                    <input type="text" id="register-street" name="register-street" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                </div>
+                <div>
+                    <label for="register-neighborhood" class="block text-sm font-medium text-gray-700">Bairro</label>
+                    <input type="text" id="register-neighborhood" name="register-neighborhood" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                </div>
+                <div>
+                    <label for="register-role" class="block text-sm font-medium text-gray-700">Função</label>
+                    <select id="register-role" name="register-role" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                        <option value="admin">Administrador</option>
+                        <option value="volunteer">Voluntário</option>
+                        <option value="user">Usuário</option>
+                    </select>
+                </div>
+                <button type="submit" class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
+                    Cadastrar
+                </button>
+            </form>
+            <p class="text-center text-sm text-gray-600">
+                Já tem uma conta? <a href="#" id="show-login-from-register" class="font-medium text-indigo-600 hover:text-indigo-500">Faça login</a>
+            </p>
+        </section>
+
+        <!-- Reset Password Section -->
+        <section id="reset-password-section" class="space-y-6 hidden">
+            <h2 class="text-3xl font-bold text-center text-gray-800">Redefinir Senha</h2>
+            <form id="reset-password-form" class="space-y-4">
+                <div>
+                    <label for="reset-email" class="block text-sm font-medium text-gray-700">Email</label>
+                    <input type="email" id="reset-email" name="reset-email" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                </div>
+                <button type="submit" class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-yellow-600 hover:bg-yellow-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500">
+                    Enviar Link de Redefinição
+                </button>
+            </form>
+            <p class="text-center text-sm text-gray-600">
+                Lembrou da senha? <a href="#" id="show-login-from-reset" class="font-medium text-indigo-600 hover:text-indigo-500">Faça login</a>
+            </p>
+        </section>
+    </div>
+
+    <!-- Dashboard Section -->
+    <div id="dashboard-section" class="container grid grid-cols-1 md:grid-cols-4 gap-6 hidden">
+        <!-- Sidebar / Navigation -->
+        <aside class="md:col-span-1 sidebar p-6">
+            <h3 class="text-xl font-semibold text-gray-800 mb-4">Navegação</h3>
+            <nav>
+                <ul>
+                    <li><a href="#" id="nav-overview" class="nav-link active">Visão Geral</a></li>
+                    <li><a href="#" id="nav-entrada" class="nav-link">Entrada de Itens</a></li>
+                    <li><a href="#" id="nav-saida" class="nav-link">Saída de Itens</a></li>
+                    <li><a href="#" id="nav-cadastro-pessoas" class="nav-link">Cadastro de Pessoas Atendidas</a></li>
+                    <li><a href="#" id="nav-cadastro-voluntarios" class="nav-link">Cadastro de Voluntários</a></li>
+                    <li><a href="#" id="nav-agendamentos" class="nav-link">Agendamentos</a></li>
+                    <li><a href="#" id="nav-relatorios" class="nav-link">Relatórios</a></li>
+                    <li><a href="#" id="nav-pesquisa" class="nav-link">Pesquisa</a></li>
+                </ul>
+            </nav>
+            <div class="mt-8">
+                <button id="logout-button" class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">
+                    Sair
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="md:col-span-3 main-content p-6">
+            <!-- Dashboard Overview Section (New) -->
+            <section id="dashboard-overview-section" class="space-y-6">
+                <h2 class="text-2xl font-bold text-gray-800">Visão Geral do Dashboard</h2>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div class="bg-blue-100 p-4 rounded-lg shadow-md text-center">
+                        <h3 class="text-lg font-semibold text-blue-800">Total de Itens em Estoque</h3>
+                        <p id="overview-total-items" class="text-4xl font-bold text-blue-600 mt-2">0</p>
+                    </div>
+                    <div class="bg-green-100 p-4 rounded-lg shadow-md text-center">
+                        <h3 class="text-lg font-semibold text-green-800">Pessoas Atendidas</h3>
+                        <p id="overview-total-people" class="text-4xl font-bold text-green-600 mt-2">0</p>
+                    </div>
+                    <div class="bg-yellow-100 p-4 rounded-lg shadow-md text-center">
+                        <h3 class="text-lg font-semibold text-yellow-800">Agendamentos Próximos</h3>
+                        <p id="overview-upcoming-appointments" class="text-4xl font-bold text-yellow-600 mt-2">0</p>
+                    </div>
+                </div>
+
+                <h3 class="text-xl font-semibold text-gray-800 mt-8 mb-4">Atividade Recente</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <h4 class="text-lg font-semibold text-gray-700 mb-2">Últimas Entradas</h4>
+                        <ul id="overview-latest-entries" class="space-y-2 list-container max-h-60">
+                            <li class="text-gray-500 p-2">Nenhuma entrada recente.</li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h4 class="text-lg font-semibold text-gray-700 mb-2">Últimas Saídas</h4>
+                        <ul id="overview-latest-exits" class="space-y-2 list-container max-h-60">
+                            <li class="text-gray-500 p-2">Nenhuma saída recente.</li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Entrada de Itens Section -->
+            <section id="entrada-section" class="space-y-6 hidden">
+                <h2 class="text-2xl font-bold text-gray-800">Entrada de Itens</h2>
+                <form id="entrada-form" class="space-y-4">
+                    <div class="form-group">
+                        <label for="entrada-categoria" class="block text-sm font-medium text-gray-700">Categoria</label>
+                        <select id="entrada-categoria" name="entrada-categoria" required class="form-select">
+                            <option value="">Selecione a Categoria</option>
+                            <option value="roupa">Roupa</option>
+                            <option value="calcado">Calçado</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="entrada-tipo" class="block text-sm font-medium text-gray-700">Tipo</label>
+                        <input type="text" id="entrada-tipo" name="entrada-tipo" required class="form-input">
+                    </div>
+                    <div class="form-group">
+                        <label for="entrada-genero" class="block text-sm font-medium text-gray-700">Gênero</label>
+                        <select id="entrada-genero" name="entrada-genero" required class="form-select">
+                            <option value="">Selecione o Gênero</option>
+                            <option value="masculino">Masculino</option>
+                            <option value="feminino">Feminino</option>
+                            <option value="unissex">Unissex</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="entrada-tamanho" class="block text-sm font-medium text-gray-700">Tamanho</label>
+                        <input type="text" id="entrada-tamanho" name="entrada-tamanho" required class="form-input">
+                    </div>
+                    <div class="form-group">
+                        <label for="entrada-quantidade" class="block text-sm font-medium text-gray-700">Quantidade</label>
+                        <input type="number" id="entrada-quantidade" name="entrada-quantidade" min="1" required class="form-input">
+                    </div>
+                    <div class="form-group">
+                        <label for="entrada-descricao" class="block text-sm font-medium text-gray-700">Descrição (Opcional)</label>
+                        <textarea id="entrada-descricao" name="entrada-descricao" rows="3" class="form-textarea"></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-full">Registrar Entrada</button>
+                </form>
+
+                <h3 class="text-xl font-semibold text-gray-800 mt-8 mb-4">Estoque Atual</h3>
+                <ul id="current-stock-list" class="space-y-3 list-container">
+                    <!-- Items will be loaded here by JavaScript -->
+                </ul>
+            </section>
+
+            <!-- Saída de Itens Section -->
+            <section id="saida-section" class="space-y-6 hidden">
+                <h2 class="text-2xl font-bold text-gray-800">Saída de Itens</h2>
+                <form id="saida-form" class="space-y-4">
+                    <div class="form-group">
+                        <label for="saida-pessoa" class="block text-sm font-medium text-gray-700">Pessoa Atendida</label>
+                        <select id="saida-pessoa" name="saida-pessoa" required class="form-select">
+                            <option value="">Selecione uma pessoa</option>
+                            <!-- People will be loaded here by JavaScript -->
+                        </select>
+                    </div>
+                    <h4 class="text-lg font-semibold text-gray-800 mt-6 mb-3">Itens para Saída</h4>
+                    <div id="saida-items-container" class="space-y-3">
+                        <!-- Item rows will be added here by JavaScript -->
+                    </div>
+                    <button type="button" id="add-item-row" class="btn btn-secondary mt-4">Adicionar Mais Item</button>
+                    <button type="submit" class="btn btn-primary w-full mt-6">Registrar Saída</button>
+                </form>
+                <div class="mt-8">
+                    <button id="print-last-receipt-button" class="btn btn-secondary w-full">Imprimir Último Recibo de Saída</button>
+                </div>
+            </section>
+
+            <!-- Cadastro de Pessoas Atendidas Section -->
+            <section id="cadastro-pessoas-section" class="space-y-6 hidden">
+                <h2 class="text-2xl font-bold text-gray-800">Cadastro de Pessoas Atendidas</h2>
+                <form id="cadastro-pessoas-form" class="space-y-4">
+                    <div class="form-group">
+                        <label for="pessoa-nome" class="block text-sm font-medium text-gray-700">Nome Completo</label>
+                        <input type="text" id="pessoa-nome" name="pessoa-nome" required class="form-input">
+                    </div>
+                    <div class="form-group">
+                        <label for="pessoa-contato" class="block text-sm font-medium text-gray-700">Contato</label>
+                        <input type="text" id="pessoa-contato" name="pessoa-contato" class="form-input">
+                    </div>
+                    <div class="form-group">
+                        <label for="pessoa-endereco" class="block text-sm font-medium text-gray-700">Endereço</label>
+                        <input type="text" id="pessoa-endereco" name="pessoa-endereco" class="form-input">
+                    </div>
+                    <button type="submit" class="btn btn-primary w-full">Cadastrar Pessoa</button>
+                </form>
+
+                <h3 class="text-xl font-semibold text-gray-800 mt-8 mb-4">Pessoas Cadastradas</h3>
+                <ul id="current-people-list" class="space-y-3 list-container">
+                    <!-- People will be loaded here by JavaScript -->
+                </ul>
+            </section>
+
+            <!-- Cadastro de Voluntários Section -->
+            <section id="cadastro-voluntarios-section" class="space-y-6 hidden">
+                <h2 class="text-2xl font-bold text-gray-800">Cadastro de Voluntários</h2>
+                <form id="cadastro-voluntarios-form" class="space-y-4">
+                    <div class="form-group">
+                        <label for="voluntario-nome" class="block text-sm font-medium text-gray-700">Nome Completo</label>
+                        <input type="text" id="voluntario-nome" name="voluntario-nome" required class="form-input">
+                    </div>
+                    <div class="form-group">
+                        <label for="voluntario-contato" class="block text-sm font-medium text-gray-700">Contato</label>
+                        <input type="text" id="voluntario-contato" name="voluntario-contato" class="form-input">
+                    </div>
+                    <div class="form-group">
+                        <label for="voluntario-disponibilidade" class="block text-sm font-medium text-gray-700">Disponibilidade (Ex: Seg, Qua, Fim de Semana)</label>
+                        <input type="text" id="voluntario-disponibilidade" name="voluntario-disponibilidade" class="form-input">
+                    </div>
+                    <button type="submit" class="btn btn-primary w-full">Cadastrar Voluntário</button>
+                </form>
+
+                <h3 class="text-xl font-semibold text-gray-800 mt-8 mb-4">Voluntários Cadastrados</h3>
+                <ul id="current-volunteers-list" class="space-y-3 list-container">
+                    <!-- Volunteers will be loaded here by JavaScript -->
+                </ul>
+            </section>
+
+            <!-- Agendamentos Section -->
+            <section id="agendamentos-section" class="space-y-6 hidden">
+                <h2 class="text-2xl font-bold text-gray-800">Gerenciar Agendamentos</h2>
+                <form id="agendamento-form" class="space-y-4">
+                    <div class="form-group">
+                        <label for="agendamento-tipo" class="block text-sm font-medium text-gray-700">Tipo de Agendamento</label>
+                        <select id="agendamento-tipo" name="agendamento-tipo" required class="form-select">
+                            <option value="">Selecione o Tipo</option>
+                            <option value="doacao">Doação (Entrada de Itens)</option>
+                            <option value="retirada">Retirada (Saída de Itens)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="agendamento-data" class="block text-sm font-medium text-gray-700">Data</label>
+                        <input type="date" id="agendamento-data" name="agendamento-data" required class="form-input">
+                    </div>
+                    <div class="form-group">
+                        <label for="agendamento-hora" class="block text-sm font-medium text-gray-700">Hora</label>
+                        <input type="time" id="agendamento-hora" name="agendamento-hora" required class="form-input">
+                    </div>
+                    <div class="form-group">
+                        <label for="agendamento-descricao" class="block text-sm font-medium text-gray-700">Descrição (Opcional)</label>
+                        <textarea id="agendamento-descricao" name="agendamento-descricao" rows="3" class="form-textarea"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="agendamento-voluntario" class="block text-sm font-medium text-gray-700">Voluntário Responsável (Opcional)</label>
+                        <select id="agendamento-voluntario" name="agendamento-voluntario" class="form-select">
+                            <option value="">Nenhum</option>
+                            <!-- Volunteers will be loaded here by JavaScript -->
+                        </select>
+                    </div>
+
+                    <h4 class="text-lg font-semibold text-gray-800 mt-6 mb-3">Itens do Agendamento (Opcional)</h4>
+                    <div id="agendamento-items-container" class="space-y-3 border p-3 rounded-md bg-gray-50">
+                        <!-- Item rows for appointment will be added here by JavaScript -->
+                        <p class="text-gray-500 text-center">Adicione itens para detalhar o agendamento.</p>
+                    </div>
+                    <button type="button" id="add-agendamento-item-row" class="btn btn-secondary mt-4">Adicionar Item ao Agendamento</button>
+
+                    <button type="submit" class="btn btn-primary w-full mt-6">Registrar Agendamento</button>
+                </form>
+
+                <h3 class="text-xl font-semibold text-gray-800 mt-8 mb-4">Próximos Agendamentos</h3>
+                <ul id="current-agendamentos-list" class="space-y-3 list-container">
+                    <!-- Appointments will be loaded here by JavaScript -->
+                </ul>
+            </section>
+
+            <!-- Relatórios Section -->
+            <section id="relatorios-section" class="space-y-6 hidden">
+                <h2 class="text-2xl font-bold text-gray-800">Relatórios</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <h3 class="text-xl font-semibold text-gray-800 mb-4">Estoque Detalhado</h3>
+                        <ul id="relatorio-estoque-list" class="space-y-3 list-container">
+                            <!-- Detailed stock report will be loaded here -->
+                        </ul>
+                    </div>
+                    <div>
+                        <h3 class="text-xl font-semibold text-gray-800 mb-4">Atendimentos Detalhados</h3>
+                        <ul id="relatorio-atendimentos-list" class="space-y-3 list-container">
+                            <!-- Detailed service report will be loaded here -->
+                        </ul>
+                    </div>
+                </div>
+
+                <h3 class="text-xl font-semibold text-gray-800 mt-8 mb-4">Gráficos</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="chart-container" id="entradasChartContainer">
+                        <h4 class="text-lg font-semibold text-gray-700 mb-2">Entradas por Categoria</h4>
+                        <canvas id="entradasChart"></canvas>
+                    </div>
+                    <div class="chart-container" id="saidasChartContainer">
+                        <h4 class="text-lg font-semibold text-gray-700 mb-2">Saídas por Categoria</h4>
+                        <canvas id="saidasChart"></canvas>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Pesquisa Section -->
+            <section id="pesquisa-section" class="space-y-6 hidden">
+                <h2 class="text-2xl font-bold text-gray-800">Pesquisa</h2>
+                <form id="search-form" class="space-y-4">
+                    <div class="form-group">
+                        <label for="search-query" class="block text-sm font-medium text-gray-700">Termo de Pesquisa</label>
+                        <input type="text" id="search-query" name="search-query" placeholder="Pesquisar por item ou pessoa..." class="form-input">
+                    </div>
+                    <button type="submit" class="btn btn-primary w-full">Pesquisar</button>
+                </form>
+
+                <h3 class="text-xl font-semibold text-gray-800 mt-8 mb-4">Resultados da Pesquisa</h3>
+                <ul id="search-results-list" class="space-y-3 list-container">
+                    <!-- Search results will be loaded here by JavaScript -->
+                </ul>
+            </section>
+        </main>
+    </div>
+
+    <!-- Message Box -->
+    <div id="message-box" class="hidden"></div>
+
+    <!-- Person History Modal -->
+    <div id="person-history-modal" class="fixed inset-0 flex items-center justify-center z-50 hidden modal">
+        <div class="modal-content space-y-4">
+            <h3 id="person-history-title" class="text-xl font-bold text-gray-800"></h3>
+            <div id="person-history-content" class="max-h-96 overflow-y-auto border p-4 rounded-md bg-gray-50">
+                <!-- History content will be loaded here -->
+            </div>
+            <div class="flex justify-end space-x-3">
+                <button id="print-person-history" class="btn btn-primary">Imprimir Histórico</button>
+                <button id="close-person-history-modal" class="btn btn-secondary">Fechar</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="script.js"></script>
+</body>
+</html>
