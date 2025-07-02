@@ -380,6 +380,26 @@
                     </div>
                     <button type="submit" class="btn btn-primary w-full">Registrar Entrada</button>
                 </form>
+                <!-- Dentro da seção de Estoque Atual (entrada-section) -->
+            <div class="mb-4 flex flex-col sm:flex-row items-center gap-4">
+                <div class="flex-grow">
+                    <label for="filter-item-type" class="block text-sm font-medium text-gray-700">Filtrar por Tipo:</label>
+                    <select id="filter-item-type" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                        <option value="all">Todos os Tipos</option>
+                        <!-- Opções serão preenchidas dinamicamente pelo JavaScript -->
+                    </select>
+                </div>
+                <div>
+                    <button id="print-stock-by-type-button" class="mt-4 sm:mt-0 px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition duration-150 ease-in-out shadow-sm">
+                        Imprimir Estoque por Tipo
+                    </button>
+                </div>
+            </div>
+
+            <!-- Mantenha a lista de estoque existente abaixo deste novo div -->
+            <ul id="current-stock-list" class="space-y-2">
+                <!-- Itens do estoque serão carregados aqui -->
+            </ul>
 
                 <h3 class="text-xl font-semibold text-gray-800 mt-8 mb-4">Estoque Atual</h3>
                 <ul id="current-stock-list" class="space-y-3 list-container">
